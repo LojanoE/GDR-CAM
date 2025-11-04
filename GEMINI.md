@@ -16,7 +16,7 @@ This project is a Progressive Web App (PWA) named "GDR-CAM". Its primary functio
 ### Technologies Used:
 
 - **Frontend:** HTML5, CSS3, JavaScript
-- **Camera Access:** `getUserMedia` API
+- **Camera Access:** `getUserMedia` API, `ImageCapture` API
 - **Metadata:** `piexif.js` and `exif.js` libraries for reading and writing EXIF metadata.
 - **Offline Support:** Service Workers (`sw.js`)
 - **PWA:** Web App Manifest (`manifest.json`)
@@ -39,6 +39,8 @@ The application should load, and you can start using it.
 
 - **Single-Page Application:** The entire user interface and logic are contained within `index.html`.
 - **JavaScript Libraries:** The project relies on `exif.js`, `piexif.js`, and `save-image.js`, which are included via `<script>` tags in `index.html`.
+- **Image Capture:** The application uses the `ImageCapture` API to take photos, which helps in preserving the original EXIF metadata from the camera. A fallback to the canvas method is implemented for browsers that do not support `ImageCapture`.
+- **GPS Capture Flow:** To ensure that GPS data is captured, the user is notified that the location is being obtained, and the photo capture is delayed until the location is acquired.
 - **Offline First:** The Service Worker (`sw.js`) is configured to cache the main application files (`/`, `index.html`, `manifest.json`), allowing the app to load and function offline.
 - **PWA Configuration:** The `manifest.json` file defines the application's name, icons, and other properties for the PWA experience.
 - **Responsive Design:** The `style.css` file includes media queries to adapt the layout for different screen sizes, particularly for mobile devices.

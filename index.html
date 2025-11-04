@@ -10,7 +10,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>GDR-CAM - Aplicación de Captura de Fotos V4</h1>
+        <h1>GDR-CAM - Aplicación de Captura de Fotos V5</h1>
         
         <div id="camera-section">
             <div class="video-container">
@@ -89,6 +89,7 @@
         const statusMessage = document.getElementById('status-message');
         
         let stream = null;
+        let imageCapture = null;
         let capturedPhotoDataUrl = null;
         let photoWithMetadata = null;
         let currentLocation = null;
@@ -113,9 +114,14 @@
                 }
                 
                 video.srcObject = stream;
-                takePhotoBtn.disabled = false;
+                const track = stream.getVideoTracks()[0];
+                if (typeof ImageCapture !== 'undefined'){
+                    imageCapture = new ImageCapture(track);
+                }
+                
+                takePhotoBtn.disabled = true; // Disable until location is obtained
                 startCameraBtn.disabled = true;
-                showStatus('Cámara iniciada. Puede tomar una foto.', 'success');
+                showStatus('Cámara iniciada. Obteniendo ubicación...', 'success');
                 
                 // Intentar obtener la ubicación
                 getCurrentLocation();
@@ -138,10 +144,13 @@
                             timestamp: position.timestamp
                         };
                         console.log('Ubicación obtenida:', currentLocation);
+                        showStatus('Ubicación obtenida. Puede tomar una foto.', 'success');
+                        takePhotoBtn.disabled = false; // Enable photo taking
                     },
                     (error) => {
                         console.warn('No se pudo obtener la ubicación:', error.message);
-                        showStatus('No se pudo obtener la ubicación del dispositivo', 'error');
+                        showStatus('No se pudo obtener la ubicación. Puede tomar la foto sin datos de GPS.', 'error');
+                        takePhotoBtn.disabled = false; // Enable photo taking anyway
                     },
                     {
                         enableHighAccuracy: true,
@@ -152,30 +161,55 @@
             } else {
                 console.warn('Geolocalización no soportada');
                 showStatus('La geolocalización no es compatible con este navegador', 'error');
+                takePhotoBtn.disabled = false; // Enable photo taking anyway
             }
         }
         
         // Tomar foto
         takePhotoBtn.addEventListener('click', () => {
-            const context = canvas.getContext('2d');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            capturedPhotoDataUrl = canvas.toDataURL('image/jpeg');
-            video.srcObject = null;
-            
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
+            if (imageCapture) {
+                imageCapture.takePhoto()
+                    .then(blob => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            capturedPhotoDataUrl = reader.result;
+                            video.srcObject = null;
+                            if (stream) {
+                                stream.getTracks().forEach(track => track.stop());
+                                stream = null;
+                            }
+                            cameraSection.classList.add('hidden');
+                            formSection.classList.remove('hidden');
+                            takePhotoBtn.disabled = true;
+                            startCameraBtn.disabled = false;
+                        };
+                        reader.readAsDataURL(blob);
+                    })
+                    .catch(error => {
+                        console.error('Error taking photo:', error);
+                        showStatus('Error al tomar la foto.', 'error');
+                    });
+            } else {
+                // Fallback to canvas method
+                const context = canvas.getContext('2d');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                capturedPhotoDataUrl = canvas.toDataURL('image/jpeg');
+                video.srcObject = null;
+                
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                    stream = null;
+                }
+                
+                cameraSection.classList.add('hidden');
+                formSection.classList.remove('hidden');
+                
+                takePhotoBtn.disabled = true;
+                startCameraBtn.disabled = false;
             }
-            
-            // Mostrar el formulario
-            cameraSection.classList.add('hidden');
-            formSection.classList.remove('hidden');
-            
-            takePhotoBtn.disabled = true;
-            startCameraBtn.disabled = false;
         });
         
         // Guardar foto con metadatos
