@@ -10,7 +10,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>GDR-CAM - Aplicación de Captura de Fotos V7</h1>
+        <h1>GDR-CAM - Aplicación de Captura de Fotos V8</h1>
         
         <div id="camera-section">
             <div class="video-container">
@@ -194,7 +194,7 @@
                 canvas.height = imageSource.videoHeight || imageSource.height;
                 const context = canvas.getContext('2d');
                 context.drawImage(imageSource, 0, 0, canvas.width, canvas.height);
-                capturedPhotoDataUrl = canvas.toDataURL('image/jpeg');
+                capturedPhotoDataUrl = canvas.toDataURL('image/jpeg', 0.95);
 
                 video.srcObject = null;
                 if (stream) {
@@ -318,8 +318,8 @@
                         ctx.shadowOffsetX = 0;
                         ctx.shadowOffsetY = 0;
                         
-                        // Devolver la imagen con el texto y logo como data URL
-                        resolve(canvas.toDataURL('image/jpeg', 0.9));
+                        // Devolver la imagen con el texto y logo como data URL con mayor calidad
+                        resolve(canvas.toDataURL('image/jpeg', 0.95));
                     };
                     logo.onerror = function() {
                         // Si no se puede cargar el logo, continuar solo con el timestamp
@@ -353,8 +353,8 @@
                         ctx.shadowOffsetX = 0;
                         ctx.shadowOffsetY = 0;
                         
-                        // Devolver la imagen con el texto como data URL
-                        resolve(canvas.toDataURL('image/jpeg', 0.9));
+                        // Devolver la imagen con el texto como data URL con mayor calidad
+                        resolve(canvas.toDataURL('image/jpeg', 0.95));
                     };
                     logo.src = 'img/LOGO GDR.jpeg'; // Ruta al logo
                 };
@@ -485,6 +485,9 @@
                             saveWithoutFormBtn.innerHTML = 'Guardar Foto sin Formulario';
                             saveWithoutFormBtn.disabled = false;
                         }
+                        
+                        // Automatically save to gallery
+                        saveToGallery(newImage);
 
                     } catch (err) {
                         console.error('Error en addMetadataToImage:', err);
