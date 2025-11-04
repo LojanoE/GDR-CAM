@@ -10,7 +10,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>GDR-CAM - Aplicación de Captura de Fotos V5</h1>
+        <h1>GDR-CAM - Aplicación de Captura de Fotos V6</h1>
         
         <div id="camera-section">
             <div class="video-container">
@@ -52,6 +52,11 @@
                 <label for="activity-performed">Actividad Realizada:</label>
                 <textarea id="activity-performed" rows="4" required></textarea>
             </div>
+
+            <div class="form-group">
+                <label for="gps-coords">Coordenadas GPS:</label>
+                <input type="text" id="gps-coords" disabled>
+            </div>
             
             <div class="action-buttons">
                 <button id="save-metadata">Guardar Foto con Metadatos</button>
@@ -64,10 +69,19 @@
             <div class="action-buttons">
                 <button id="new-capture">Nueva Captura</button>
                 <button id="download-photo">Guardar en Galería</button>
+                <button id="view-metadata">Ver Metadatos</button>
             </div>
         </div>
         
         <div id="status-message" class="status hidden"></div>
+    </div>
+
+    <div id="metadata-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>Metadatos de la Imagen</h2>
+            <pre id="metadata-display"></pre>
+        </div>
     </div>
 
     <script src="exif.js"></script>
@@ -133,6 +147,7 @@
         
         // Intentar obtener la ubicación actual
         function getCurrentLocation() {
+            const gpsDisplay = document.getElementById('gps-coords');
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     (position) => {
@@ -145,11 +160,13 @@
                         };
                         console.log('Ubicación obtenida:', currentLocation);
                         showStatus('Ubicación obtenida. Puede tomar una foto.', 'success');
+                        gpsDisplay.value = `${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`;
                         takePhotoBtn.disabled = false; // Enable photo taking
                     },
                     (error) => {
                         console.warn('No se pudo obtener la ubicación:', error.message);
                         showStatus('No se pudo obtener la ubicación. Puede tomar la foto sin datos de GPS.', 'error');
+                        gpsDisplay.value = 'No se pudo obtener la ubicación.';
                         takePhotoBtn.disabled = false; // Enable photo taking anyway
                     },
                     {
@@ -161,6 +178,7 @@
             } else {
                 console.warn('Geolocalización no soportada');
                 showStatus('La geolocalización no es compatible con este navegador', 'error');
+                gpsDisplay.value = 'Geolocalización no soportada.';
                 takePhotoBtn.disabled = false; // Enable photo taking anyway
             }
         }
@@ -485,6 +503,62 @@
                     });
             });
         }
+
+        // Modal de metadatos
+        const viewMetadataBtn = document.getElementById('view-metadata');
+        const metadataModal = document.getElementById('metadata-modal');
+        const closeButton = document.querySelector('.close-button');
+        const metadataDisplay = document.getElementById('metadata-display');
+
+        viewMetadataBtn.addEventListener('click', () => {
+            if (photoWithMetadata) {
+                const exifObj = piexif.load(photoWithMetadata);
+                let metadataText = '';
+
+                // Display User Comment (form data)
+                if (exifObj.Exif && exifObj.Exif[piexif.ExifIFD.UserComment]) {
+                    try {
+                        const userComment = piexif.helper.decodeFromUnicode(exifObj.Exif[piexif.ExifIFD.UserComment]);
+                        const jsonData = JSON.parse(userComment);
+                        metadataText += 'Datos del Formulario:\n';
+                        metadataText += JSON.stringify(jsonData, null, 2);
+                        metadataText += '\n\n';
+                    } catch (e) {
+                        console.error('Error parsing user comment:', e);
+                        metadataText += 'Datos del Formulario (no se pudo decodificar):\n';
+                        metadataText += exifObj.Exif[piexif.ExifIFD.UserComment] + '\n\n';
+                    }
+                } else {
+                    metadataText += 'No se encontraron datos del formulario en los metadatos.\n\n';
+                }
+
+                // Display GPS data
+                if (exifObj.GPS && Object.keys(exifObj.GPS).length > 0) {
+                    metadataText += 'Datos GPS:\n';
+                    for (const tag in exifObj.GPS) {
+                        const tagName = piexif.GPSIFD[tag] || `Unknown Tag (${tag})`;
+                        metadataText += `${tagName}: ${exifObj.GPS[tag]}\n`;
+                    }
+                } else {
+                    metadataText += 'No se encontraron datos GPS en los metadatos.\n';
+                }
+
+                metadataDisplay.textContent = metadataText;
+                metadataModal.classList.remove('hidden');
+            } else {
+                showStatus('No hay foto para ver los metadatos.', 'error');
+            }
+        });
+
+        closeButton.addEventListener('click', () => {
+            metadataModal.classList.add('hidden');
+        });
+
+        window.addEventListener('click', (event) => {
+            if (event.target == metadataModal) {
+                metadataModal.classList.add('hidden');
+            }
+        });
     </script>
 </body>
 </html>

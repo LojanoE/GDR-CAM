@@ -1,5 +1,5 @@
 // GDR-CAM Service Worker
-const CACHE_NAME = 'gdr-cam-v5';
+const CACHE_NAME = 'gdr-cam-v6';
 const urlsToCache = [
   '/',
   '/index.html',
