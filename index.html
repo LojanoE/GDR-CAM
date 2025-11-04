@@ -10,7 +10,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>GDR-CAM - Aplicación de Captura de Fotos V6</h1>
+        <h1>GDR-CAM - Aplicación de Captura de Fotos V7</h1>
         
         <div id="camera-section">
             <div class="video-container">
@@ -185,48 +185,40 @@
         
         // Tomar foto
         takePhotoBtn.addEventListener('click', () => {
+            const processImage = (imageSource) => {
+                const canvas = document.createElement('canvas');
+                canvas.width = imageSource.videoWidth || imageSource.width;
+                canvas.height = imageSource.videoHeight || imageSource.height;
+                const context = canvas.getContext('2d');
+                context.drawImage(imageSource, 0, 0, canvas.width, canvas.height);
+                capturedPhotoDataUrl = canvas.toDataURL('image/jpeg');
+
+                video.srcObject = null;
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                    stream = null;
+                }
+                cameraSection.classList.add('hidden');
+                formSection.classList.remove('hidden');
+                takePhotoBtn.disabled = true;
+                startCameraBtn.disabled = false;
+            };
+
             if (imageCapture) {
                 imageCapture.takePhoto()
                     .then(blob => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            capturedPhotoDataUrl = reader.result;
-                            video.srcObject = null;
-                            if (stream) {
-                                stream.getTracks().forEach(track => track.stop());
-                                stream = null;
-                            }
-                            cameraSection.classList.add('hidden');
-                            formSection.classList.remove('hidden');
-                            takePhotoBtn.disabled = true;
-                            startCameraBtn.disabled = false;
+                        const image = new Image();
+                        image.src = URL.createObjectURL(blob);
+                        image.onload = () => {
+                            processImage(image);
                         };
-                        reader.readAsDataURL(blob);
                     })
                     .catch(error => {
                         console.error('Error taking photo:', error);
                         showStatus('Error al tomar la foto.', 'error');
                     });
             } else {
-                // Fallback to canvas method
-                const context = canvas.getContext('2d');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                
-                capturedPhotoDataUrl = canvas.toDataURL('image/jpeg');
-                video.srcObject = null;
-                
-                if (stream) {
-                    stream.getTracks().forEach(track => track.stop());
-                    stream = null;
-                }
-                
-                cameraSection.classList.add('hidden');
-                formSection.classList.remove('hidden');
-                
-                takePhotoBtn.disabled = true;
-                startCameraBtn.disabled = false;
+                processImage(video);
             }
         });
         
@@ -249,7 +241,7 @@
                 observationType,
                 activityPerformed,
                 location: currentLocation,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toLocaleString() // Using local time format instead of ISO string
             };
             
             // Mostrar indicador de carga
@@ -262,76 +254,68 @@
         
         // Función para añadir metadatos a la imagen
         function addMetadataToImage(imageDataUrl, metadata) {
-            // Primero intentar con piexif si está disponible
+            console.log("Iniciando addMetadataToImage");
+            console.log("imageDataUrl (primeros 100 caracteres):", imageDataUrl.slice(0, 100));
             if (typeof piexif !== 'undefined' && piexif.dump) {
                 try {
-                    // Cargar la imagen existente con piexif
+                    console.log("Cargando EXIF data desde la imagen...");
                     let exifObj = piexif.load(imageDataUrl);
-                    
-                    // Si no hay exif, crear uno vacío
+                    console.log("EXIF data cargado:", JSON.parse(JSON.stringify(exifObj)));
+
                     if (!exifObj) {
-                        exifObj = {
-                            "0th": {},
-                            "Exif": {},
-                            "GPS": {},
-                            "Interop": {},
-                            "thumbnail": null
-                        };
+                        console.log("No se encontró EXIF data, creando objeto vacío.");
+                        exifObj = {"0th": {}, "Exif": {}, "GPS": {}, "Interop": {}, "thumbnail": null};
+                    }
+
+                    console.log("Metadata a agregar:", metadata);
+                    
+                    // Handle the encoding of the user comment
+                    let userComment;
+                    if (piexif.helper && piexif.helper.encodeToUnicode) {
+                        userComment = piexif.helper.encodeToUnicode(JSON.stringify(metadata));
+                    } else {
+                        // Fallback: try to use the simpler ASCII encoding
+                        // First, ensure metadata is properly stringified and encode safely
+                        const metadataStr = JSON.stringify(metadata);
+                        // Convert the string to a format that piexif can handle
+                        userComment = "ASCII\0" + metadataStr;
                     }
                     
-                    // Agregar los metadatos como un comentario de usuario
-                    // Codificar los metadatos como una cadena JSON
-                    const userComment = JSON.stringify(metadata);
-                    
-                    // Guardar en el campo UserComment de los metadatos EXIF
                     exifObj["Exif"][piexif.ExifIFD.UserComment] = userComment;
-                    
-                    // Si hay datos de ubicación, agregarlos a los metadatos GPS
+                    console.log("UserComment agregado al objeto EXIF.");
+
                     if (metadata.location) {
+                        console.log("Agregando datos GPS...");
                         const lat = metadata.location.latitude;
                         const lng = metadata.location.longitude;
-                        
-                        // Convertir a formato GPS EXIF (grados, minutos, segundos)
                         const latRef = lat >= 0 ? "N" : "S";
                         const lngRef = lng >= 0 ? "E" : "W";
-                        
                         const absLat = Math.abs(lat);
                         const absLng = Math.abs(lng);
-                        
                         const latDeg = Math.floor(absLat);
                         const latMin = Math.floor((absLat - latDeg) * 60);
                         const latSec = Math.floor(((absLat - latDeg) * 60 - latMin) * 60 * 1000) / 1000;
-                        
                         const lngDeg = Math.floor(absLng);
                         const lngMin = Math.floor((absLng - lngDeg) * 60);
                         const lngSec = Math.floor(((absLng - lngDeg) * 60 - lngMin) * 60 * 1000) / 1000;
-                        
+
                         exifObj["GPS"] = {
                             [piexif.GPSIFD.GPSVersionID]: [2, 2, 0, 0],
                             [piexif.GPSIFD.GPSLatitudeRef]: latRef,
-                            [piexif.GPSIFD.GPSLatitude]: [
-                                [latDeg, 1],
-                                [latMin, 1],
-                                [Math.floor(latSec * 1000), 1000]
-                            ],
+                            [piexif.GPSIFD.GPSLatitude]: [[latDeg, 1], [latMin, 1], [Math.floor(latSec * 1000), 1000]],
                             [piexif.GPSIFD.GPSLongitudeRef]: lngRef,
-                            [piexif.GPSIFD.GPSLongitude]: [
-                                [lngDeg, 1],
-                                [lngMin, 1],
-                                [Math.floor(lngSec * 1000), 1000]
-                            ]
+                            [piexif.GPSIFD.GPSLongitude]: [[lngDeg, 1], [lngMin, 1], [Math.floor(lngSec * 1000), 1000]]
                         };
-                        
-                        // Agregar altitud si está disponible
+
                         if (metadata.location.altitude !== null && metadata.location.altitude !== undefined) {
                             const alt = Math.abs(metadata.location.altitude);
-                            const altRef = metadata.location.altitude >= 0 ? 0 : 1; // 0 = sobre el nivel del mar, 1 = bajo el nivel del mar
+                            const altRef = metadata.location.altitude >= 0 ? 0 : 1;
                             exifObj["GPS"][piexif.GPSIFD.GPSAltitudeRef] = altRef;
                             exifObj["GPS"][piexif.GPSIFD.GPSAltitude] = [Math.floor(alt * 1000), 1000];
                         }
+                        console.log("Datos GPS agregados:", exifObj["GPS"]);
                     }
-                    
-                    // Aplicar la fecha actual al campo DateTimeOriginal
+
                     const now = new Date();
                     const dateTimeOriginal = now.getFullYear() + ":" + 
                         String(now.getMonth() + 1).padStart(2, '0') + ":" + 
@@ -339,113 +323,33 @@
                         String(now.getHours()).padStart(2, '0') + ":" + 
                         String(now.getMinutes()).padStart(2, '0') + ":" + 
                         String(now.getSeconds()).padStart(2, '0');
-                    
                     exifObj["Exif"][piexif.ExifIFD.DateTimeOriginal] = dateTimeOriginal;
-                    
-                    // Convertir el objeto EXIF a bytes
+                    exifObj["0th"][piexif.ImageIFD.DateTime] = dateTimeOriginal;
+                    console.log("Objeto EXIF final antes de 'dump':", JSON.parse(JSON.stringify(exifObj)));
+
                     const exifBytes = piexif.dump(exifObj);
-                    
-                    // Insertar los metadatos en la imagen
+                    console.log("EXIF data convertido a bytes.");
+
                     const newImage = piexif.insert(exifBytes, imageDataUrl);
-                    
-                    // Guardar la imagen con metadatos
+                    console.log("Nueva imagen creada con EXIF data insertado.");
+
                     photoWithMetadata = newImage;
-                    
-                    // Mostrar la imagen en el preview
                     photoPreview.src = newImage;
-                    
-                    // Mostrar sección de resultados
                     formSection.classList.add('hidden');
                     resultSection.classList.remove('hidden');
-                    
                     showStatus('¡Foto guardada con metadatos!', 'success');
-                    
-                    // Restablecer el botón
                     saveMetadataBtn.innerHTML = 'Guardar Foto con Metadatos';
                     saveMetadataBtn.disabled = false;
-                    
-                    // Restablecer también el botón de guardar en galería si fue afectado
-                    if (downloadPhotoBtn.innerHTML.includes('Guardando...') || 
-                        downloadPhotoBtn.innerHTML.includes('Guardando en galería') || 
-                        downloadPhotoBtn.innerHTML.includes('Descargando...')) {
-                        downloadPhotoBtn.innerHTML = 'Guardar en Galería';
-                        downloadPhotoBtn.disabled = false;
-                    }
-                    
-                    return; // Salir después de éxito
+
                 } catch (err) {
-                    console.warn('Error con piexif, intentando método alternativo:', err);
-                    // Continuar con método alternativo
+                    console.error('Error en addMetadataToImage:', err);
+                    showStatus('Error al guardar los metadatos.', 'error');
+                    saveMetadataBtn.innerHTML = 'Guardar Foto con Metadatos';
+                    saveMetadataBtn.disabled = false;
                 }
             } else {
-                console.warn('piexif no está disponible, usando método alternativo');
-            }
-            
-            // Método alternativo: usar canvas para crear nueva imagen y almacenar los datos en localStorage o usar el comentario
-            try {
-                const img = new Image();
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    
-                    ctx.drawImage(img, 0, 0);
-                    
-                    // Guardar datos en formato JSON para referencia
-                    const metadataJson = JSON.stringify(metadata);
-                    
-                    // Añadir los metadatos a los datos de imagen como comentario
-                    canvas.toBlob(function(blob) {
-                        // Crear una URL de objeto para la imagen con metadatos
-                        const newImageUrl = URL.createObjectURL(blob);
-                        photoWithMetadata = newImageUrl;
-                        
-                        // Mostrar la imagen en el preview
-                        photoPreview.src = newImageUrl;
-                        
-                        // Mostrar sección de resultados
-                        formSection.classList.add('hidden');
-                        resultSection.classList.remove('hidden');
-                        
-                        showStatus('¡Foto guardada! Metadatos almacenados internamente.', 'success');
-                        
-                        // Restablecer el botón
-                        saveMetadataBtn.innerHTML = 'Guardar Foto con Metadatos';
-                        saveMetadataBtn.disabled = false;
-                        
-                        // Restablecer también el botón de guardar en galería si fue afectado
-                        if (downloadPhotoBtn.innerHTML.includes('Guardando...') || 
-                            downloadPhotoBtn.innerHTML.includes('Guardando en galería') || 
-                            downloadPhotoBtn.innerHTML.includes('Descargando...')) {
-                            downloadPhotoBtn.innerHTML = 'Guardar en Galería';
-                            downloadPhotoBtn.disabled = false;
-                        }
-                    }, 'image/jpeg', 0.9);
-                };
-                img.src = imageDataUrl;
-            } catch (err) {
-                console.error('Error en método alternativo:', err);
-                showStatus('Error al procesar la imagen: ' + err.message, 'error');
-                
-                // En caso de error total, usar la imagen original
-                photoPreview.src = capturedPhotoDataUrl;
-                formSection.classList.add('hidden');
-                resultSection.classList.remove('hidden');
-                showStatus('Foto guardada (sin metadatos)', 'success');
-                
-                // Restablecer el botón
-                saveMetadataBtn.innerHTML = 'Guardar Foto con Metadatos';
-                saveMetadataBtn.disabled = false;
-                
-                // Restablecer también el botón de guardar en galería si fue afectado
-                if (downloadPhotoBtn.innerHTML.includes('Guardando...') || 
-                    downloadPhotoBtn.innerHTML.includes('Guardando en galería') || 
-                    downloadPhotoBtn.innerHTML.includes('Descargando...')) {
-                    downloadPhotoBtn.innerHTML = 'Guardar en Galería';
-                    downloadPhotoBtn.disabled = false;
-                }
+                console.warn('piexif no está disponible.');
+                showStatus('La librería para metadatos no está disponible.', 'error');
             }
         }
         
@@ -518,7 +422,19 @@
                 // Display User Comment (form data)
                 if (exifObj.Exif && exifObj.Exif[piexif.ExifIFD.UserComment]) {
                     try {
-                        const userComment = piexif.helper.decodeFromUnicode(exifObj.Exif[piexif.ExifIFD.UserComment]);
+                        let userComment;
+                        if (piexif.helper && piexif.helper.decodeFromUnicode) {
+                            userComment = piexif.helper.decodeFromUnicode(exifObj.Exif[piexif.ExifIFD.UserComment]);
+                        } else {
+                            // Fallback: if the decodeFromUnicode method is not available,
+                            // try to extract the string manually (assuming ASCII\0 prefix was used)
+                            const comment = exifObj.Exif[piexif.ExifIFD.UserComment];
+                            if (comment.startsWith('ASCII\0')) {
+                                userComment = comment.substring(6); // Remove 'ASCII\0' prefix
+                            } else {
+                                userComment = comment;
+                            }
+                        }
                         const jsonData = JSON.parse(userComment);
                         metadataText += 'Datos del Formulario:\n';
                         metadataText += JSON.stringify(jsonData, null, 2);
