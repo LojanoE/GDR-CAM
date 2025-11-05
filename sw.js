@@ -1,5 +1,6 @@
-const CACHE_NAME = 'gdr-cam-v39';
-const urlsToCache = [
+const CACHE_NAME = 'gdr-cam-v40'; // Incremented version
+const STATIC_ASSETS = [
+  '/',
   'index.html',
   'app.js',
   'style.css',
@@ -13,14 +14,13 @@ const urlsToCache = [
   'https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap'
 ];
 
-// Install a service worker
+// Install service worker and cache static assets
 self.addEventListener('install', (event) => {
-  // Perform install steps
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Opened cache');
-        return cache.addAll(urlsToCache);
+        return cache.addAll(STATIC_ASSETS);
       })
       .catch(error => {
         console.error('Failed to open cache during install:', error);
@@ -29,44 +29,66 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Cache and return requests
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Return cached version if available, otherwise fetch from network
-        if (response) {
-          return response;
-        }
-        // If not in cache, try to fetch from network
-        return fetch(event.request).catch(error => {
-          console.error('Network request failed:', event.request.url, error);
-          // Return the root page for navigation requests to ensure PWA works offline
-          if (event.request.mode === 'navigate') {
-            return caches.match('./index.html');
-          }
-        });
-      })
-    )
-  );
-});
-
-// Update a service worker
+// Activate service worker and clean up old caches
 self.addEventListener('activate', (event) => {
-  const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
+          if (cacheName !== CACHE_NAME) {
             console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
-    })
-    .then(() => {
+    }).then(() => {
       console.log('Service worker activated and old caches cleaned');
+      return self.clients.claim(); // Take control of all clients immediately
     })
+  );
+});
+
+// Fetch event with Stale-While-Revalidate strategy
+self.addEventListener('fetch', (event) => {
+  // For navigation requests, use Network Falling Back to Cache
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          // If the network is available, cache the new response and return it
+          return caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, response.clone());
+            return response;
+          });
+        })
+        .catch(() => {
+          // If the network fails, return the cached version
+          return caches.match(event.request);
+        })
+    );
+    return;
+  }
+
+  // For other requests (static assets), use Stale-While-Revalidate
+  event.respondWith(
+    caches.match(event.request)
+      .then((cachedResponse) => {
+        const fetchPromise = fetch(event.request).then((networkResponse) => {
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, networkResponse.clone());
+          });
+          return networkResponse;
+        });
+
+        // Return cached response immediately, while the network request runs in the background
+        return cachedResponse || fetchPromise;
+      })
+      .catch(error => {
+        console.error('Fetch failed:', error);
+        // Provide a fallback for images if they fail
+        if (event.request.destination === 'image') {
+          return caches.match('img/icon-512x512.png'); // A placeholder image
+        }
+      })
   );
 });
