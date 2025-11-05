@@ -24,6 +24,7 @@ const elements = {
     downloadPhotoBtn: null,
     cameraSection: null,
     statusMessage: null,
+    saveWithoutFormBtn: null,  // Added this to track the save without form button
 };
 
 // Initialize the application
@@ -41,6 +42,7 @@ function init() {
     elements.downloadPhotoBtn = document.getElementById('download-photo');
     elements.cameraSection = document.getElementById('camera-section');
     elements.statusMessage = document.getElementById('status-message');
+    elements.saveWithoutFormBtn = document.getElementById('save-photo-without-form');
     
     // Attach event listeners
     attachEventListeners();
@@ -70,7 +72,7 @@ function attachEventListeners() {
     elements.saveMetadataBtn.addEventListener('click', handleSaveMetadata);
     
     // Add event listener for saving photo without form (only GPS and timestamp)
-    document.getElementById('save-photo-without-form').addEventListener('click', () => {
+    elements.saveWithoutFormBtn.addEventListener('click', () => {
         // Create metadata object with just GPS and timestamp
         const metadata = {
             location: appState.currentLocation,
@@ -78,9 +80,8 @@ function attachEventListeners() {
         };
         
         // Show loading indicator
-        const saveWithoutFormBtn = document.getElementById('save-photo-without-form');
-        saveWithoutFormBtn.innerHTML = '<span class="loading"></span> Procesando...';
-        saveWithoutFormBtn.disabled = true;
+        elements.saveWithoutFormBtn.innerHTML = '<span class="loading"></span> Procesando...';
+        elements.saveWithoutFormBtn.disabled = true;
         
         // Add metadata to the image
         addMetadataToImage(appState.capturedPhotoDataUrl, metadata);
@@ -745,10 +746,9 @@ async function addMetadataToImage(imageDataUrl, metadata) {
                     elements.saveMetadataBtn.innerHTML = 'Guardar Foto con Metadatos';
                     elements.saveMetadataBtn.disabled = false;
                 }
-                const saveWithoutFormBtn = document.getElementById('save-photo-without-form');
-                if (saveWithoutFormBtn) {
-                    saveWithoutFormBtn.innerHTML = 'Guardar Foto sin Formulario';
-                    saveWithoutFormBtn.disabled = false;
+                if (elements.saveWithoutFormBtn) {
+                    elements.saveWithoutFormBtn.innerHTML = 'Guardar Foto sin Formulario';
+                    elements.saveWithoutFormBtn.disabled = false;
                 }
                 
                 // Automatically save to gallery
@@ -763,10 +763,9 @@ async function addMetadataToImage(imageDataUrl, metadata) {
                     elements.saveMetadataBtn.innerHTML = 'Guardar Foto con Metadatos';
                     elements.saveMetadataBtn.disabled = false;
                 }
-                const saveWithoutFormBtn = document.getElementById('save-photo-without-form');
-                if (saveWithoutFormBtn) {
-                    saveWithoutFormBtn.innerHTML = 'Guardar Foto sin Formulario';
-                    saveWithoutFormBtn.disabled = false;
+                if (elements.saveWithoutFormBtn) {
+                    elements.saveWithoutFormBtn.innerHTML = 'Guardar Foto sin Formulario';
+                    elements.saveWithoutFormBtn.disabled = false;
                 }
             }
         } else {
@@ -782,10 +781,9 @@ async function addMetadataToImage(imageDataUrl, metadata) {
             elements.saveMetadataBtn.innerHTML = 'Guardar Foto con Metadatos';
             elements.saveMetadataBtn.disabled = false;
         }
-        const saveWithoutFormBtn = document.getElementById('save-photo-without-form');
-        if (saveWithoutFormBtn) {
-            saveWithoutFormBtn.innerHTML = 'Guardar Foto sin Formulario';
-            saveWithoutFormBtn.disabled = false;
+        if (elements.saveWithoutFormBtn) {
+            elements.saveWithoutFormBtn.innerHTML = 'Guardar Foto sin Formulario';
+            elements.saveWithoutFormBtn.disabled = false;
         }
     }
 }
