@@ -1129,10 +1129,9 @@ async function addTimestampAndLogoToImage(imageUrl) {
                 // Draw logo with proper positioning
                 ctx.drawImage(logo, logoX, logoY, logoWidth, logoHeight);
 
-                // Draw north direction indicator in the bottom center
+                // Draw north direction indicator in the bottom center with white text and black outline
                 const fontSize = Math.min(80, Math.max(20, Math.floor(canvas.height * 0.04))); // Scale font with image size
                 ctx.font = `bold ${fontSize}px Arial`;
-                ctx.fillStyle = 'rgba(0, 255, 0, 0.9)'; // Green color for visibility
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
 
@@ -1178,8 +1177,15 @@ async function addTimestampAndLogoToImage(imageUrl) {
                     }
                 }
                 
-                // Draw a simple north arrow symbol above the GPS info
+                // Draw a simple north arrow symbol above the GPS info with white color and black outline
+                ctx.strokeStyle = 'black'; // Black outline
+                ctx.lineWidth = 2; // Outline thickness
+                ctx.fillStyle = 'white'; // White fill color
+                ctx.strokeText('⬆', centerX, northY - fontSize * 0.8);
                 ctx.fillText('⬆', centerX, northY - fontSize * 0.8);
+                
+                // Draw GPS info with white color and black outline
+                ctx.strokeText(gpsInfo, centerX, northY);
                 ctx.fillText(gpsInfo, centerX, northY);
                 
                 // Prepare to draw timestamp text in the bottom-right corner
@@ -1206,9 +1212,8 @@ async function addTimestampAndLogoToImage(imageUrl) {
                 const fontSize = Math.min(80, Math.max(20, Math.floor(canvas.height * 0.04))); // Scale font with image size
                 const padding = Math.min(25, canvas.width * 0.02, canvas.height * 0.02); // Make padding proportional to image
                 
-                // Draw north direction indicator in the bottom center
+                // Draw north direction indicator in the bottom center with white text and black outline
                 ctx.font = `bold ${fontSize}px Arial`;
-                ctx.fillStyle = 'rgba(0, 255, 0, 0.9)'; // Green color for visibility
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
 
@@ -1254,8 +1259,15 @@ async function addTimestampAndLogoToImage(imageUrl) {
                     }
                 }
                 
-                // Draw a simple north arrow symbol above the GPS info
+                // Draw a simple north arrow symbol above the GPS info with white color and black outline
+                ctx.strokeStyle = 'black'; // Black outline
+                ctx.lineWidth = 2; // Outline thickness
+                ctx.fillStyle = 'white'; // White fill color
+                ctx.strokeText('⬆', centerX, northY - fontSize * 0.8);
                 ctx.fillText('⬆', centerX, northY - fontSize * 0.8);
+                
+                // Draw GPS info with white color and black outline
+                ctx.strokeText(gpsInfo, centerX, northY);
                 ctx.fillText(gpsInfo, centerX, northY);
 
                 // Prepare to draw timestamp text in the bottom-right corner
@@ -1344,10 +1356,9 @@ async function applyRotationToImage(imageUrl, rotationAngle) {
                 // Draw logo with proper positioning
                 ctx.drawImage(logo, logoX, logoY, logoWidth, logoHeight);
 
-                // Draw north direction indicator in the bottom center
+                // Draw north direction indicator in the bottom center with white text and black outline
                 const fontSize = Math.min(80, Math.max(20, Math.floor(canvas.height * 0.04))); // Scale font with image size
                 ctx.font = `bold ${fontSize}px Arial`;
-                ctx.fillStyle = 'rgba(0, 255, 0, 0.9)'; // Green color for visibility
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
 
@@ -1393,8 +1404,15 @@ async function applyRotationToImage(imageUrl, rotationAngle) {
                     }
                 }
                 
-                // Draw a simple north arrow symbol above the GPS info
+                // Draw a simple north arrow symbol above the GPS info with white color and black outline
+                ctx.strokeStyle = 'black'; // Black outline
+                ctx.lineWidth = 2; // Outline thickness
+                ctx.fillStyle = 'white'; // White fill color
+                ctx.strokeText('⬆', centerX, northY - fontSize * 0.8);
                 ctx.fillText('⬆', centerX, northY - fontSize * 0.8);
+                
+                // Draw GPS info with white color and black outline
+                ctx.strokeText(gpsInfo, centerX, northY);
                 ctx.fillText(gpsInfo, centerX, northY);
 
                 // Prepare to draw timestamp text in the bottom-right corner
@@ -1421,9 +1439,8 @@ async function applyRotationToImage(imageUrl, rotationAngle) {
                 const fontSize = Math.min(80, Math.max(20, Math.floor(canvas.height * 0.04))); // Scale font with image size
                 const padding = Math.min(25, canvas.width * 0.02, canvas.height * 0.02); // Make padding proportional to image
                 
-                // Draw north direction indicator in the bottom center
+                // Draw north direction indicator in the bottom center with white text and black outline
                 ctx.font = `bold ${fontSize}px Arial`;
-                ctx.fillStyle = 'rgba(0, 255, 0, 0.9)'; // Green color for visibility
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
 
@@ -1469,8 +1486,15 @@ async function applyRotationToImage(imageUrl, rotationAngle) {
                     }
                 }
                 
-                // Draw a simple north arrow symbol above the GPS info
+                // Draw a simple north arrow symbol above the GPS info with white color and black outline
+                ctx.strokeStyle = 'black'; // Black outline
+                ctx.lineWidth = 2; // Outline thickness
+                ctx.fillStyle = 'white'; // White fill color
+                ctx.strokeText('⬆', centerX, northY - fontSize * 0.8);
                 ctx.fillText('⬆', centerX, northY - fontSize * 0.8);
+                
+                // Draw GPS info with white color and black outline
+                ctx.strokeText(gpsInfo, centerX, northY);
                 ctx.fillText(gpsInfo, centerX, northY);
 
                 // Prepare to draw timestamp text in the bottom-right corner

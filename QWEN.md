@@ -139,7 +139,7 @@ When saving photos to the gallery, the application adds the following graphical 
    - Representation: Upward arrow symbol (⬆) followed by GPS coordinates if available
    - Format when GPS data is present: `N [lat]° [N/S], [lng]° [E/W]` (e.g., N 0.1234° N, 0.5678° W)
    - Fallback when no GPS data: Simple "N" notation
-   - Color: Green with slight transparency (rgba(0, 255, 0, 0.9)) for better visibility
+   - Appearance: White text with black outline for high visibility on any background
    - Font: Bold Arial
    - Location: Between the logo (bottom left) and timestamp (bottom right)
 
