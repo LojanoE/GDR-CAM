@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gdr-cam-v29';
+const CACHE_NAME = 'gdr-cam-v30';
 const urlsToCache = [
   'index.html',
   'app.js',
