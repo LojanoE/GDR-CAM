@@ -137,3 +137,14 @@ Recent enhancements to GPS precision include:
 - Real-time display of GPS accuracy updates during form completion
 - Automatic stopping of GPS watching when metadata is saved or when moving to a new capture
 - Improved location accuracy by allowing extended time for GPS signal refinement during form completion
+
+### Zoom Functionality
+Added zoom controls to enhance user experience:
+- Zoom in and zoom out buttons with visual indicators
+- Real-time zoom level display (e.g., "1x", "2x", etc.)
+- Automatic detection of camera zoom capabilities
+- Support for both optical and digital zoom depending on device capabilities
+- Zoom constraints to prevent over-zooming beyond camera capabilities
+- Disabled zoom controls when camera is not active
+- Zoom level resets to 1x when starting a new capture
+- Intuitive UI with dedicated zoom controls placed next to camera button

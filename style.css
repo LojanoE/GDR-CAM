@@ -77,7 +77,20 @@ canvas {
     font-size: 1.5rem;
     cursor: pointer;
     transition: background-color 0.3s;
-    margin: 0 10px;
+    margin: 0 5px;
+}
+
+.zoom-level {
+    color: white;
+    font-size: 1.2rem;
+    font-weight: bold;
+    display: inline-block;
+    min-width: 40px;
+    text-align: center;
+    margin: 0 5px;
+    background-color: rgba(0, 0, 0, 0.3);
+    padding: 5px 10px;
+    border-radius: 15px;
 }
 
 .control-btn:hover {

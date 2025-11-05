@@ -11,7 +11,10 @@ const appState = {
     locationWatcher: null, // Store the GPS watcher ID
     isCameraActive: false,
     imageRotation: 0, // Track current rotation angle
-    originalPhotoWithMetadata: null // Store the original image for rotation operations
+    originalPhotoWithMetadata: null, // Store the original image for rotation operations
+    currentZoom: 1.0, // Current zoom level
+    maxZoom: 1.0, // Maximum available zoom level
+    zoomSupported: false // Whether zoom is supported by the camera
 };
 
 // DOM Elements
@@ -20,6 +23,9 @@ const elements = {
     canvas: null,
     startCameraBtn: null,
     takePhotoBtn: null,
+    zoomInBtn: null,
+    zoomOutBtn: null,
+    zoomLevelDisplay: null,
     formSection: null,
     resultSection: null,
     photoPreview: null,
@@ -51,6 +57,12 @@ function init() {
     elements.saveWithoutFormBtn = document.getElementById('save-photo-without-form');
     elements.rotateLeftBtn = document.getElementById('rotate-left');
     elements.rotateRightBtn = document.getElementById('rotate-right');
+    elements.zoomInBtn = document.getElementById('zoom-in');
+    elements.zoomOutBtn = document.getElementById('zoom-out');
+    elements.zoomLevelDisplay = document.getElementById('zoom-level');
+    
+    // Initialize zoom controls
+    initializeZoomControls();
     
     // Attach event listeners
     attachEventListeners();
@@ -137,10 +149,102 @@ function attemptFallbackOrientationLock() {
     document.head.appendChild(style);
 }
 
+// Function to initialize zoom controls
+function initializeZoomControls() {
+    // Initially disable zoom controls until camera is active
+    if (elements.zoomInBtn) elements.zoomInBtn.disabled = true;
+    if (elements.zoomOutBtn) elements.zoomOutBtn.disabled = true;
+    
+    // Update zoom display
+    if (elements.zoomLevelDisplay) {
+        elements.zoomLevelDisplay.textContent = `${appState.currentZoom.toFixed(1)}x`;
+    }
+}
+
+// Function to update zoom controls state based on zoom support and current zoom level
+function updateZoomControls() {
+    if (!appState.zoomSupported) {
+        if (elements.zoomInBtn) elements.zoomInBtn.disabled = true;
+        if (elements.zoomOutBtn) elements.zoomOutBtn.disabled = true;
+        return;
+    }
+    
+    if (elements.zoomInBtn) elements.zoomInBtn.disabled = appState.stream === null;
+    if (elements.zoomOutBtn) elements.zoomOutBtn.disabled = appState.stream === null;
+    
+    // Disable zoom in if at max zoom level
+    if (elements.zoomInBtn) {
+        elements.zoomInBtn.disabled = (appState.currentZoom >= appState.maxZoom) || (appState.stream === null);
+    }
+    
+    // Disable zoom out if at minimum zoom level (1.0)
+    if (elements.zoomOutBtn) {
+        elements.zoomOutBtn.disabled = (appState.currentZoom <= 1.0) || (appState.stream === null);
+    }
+    
+    // Update zoom display
+    if (elements.zoomLevelDisplay) {
+        elements.zoomLevelDisplay.textContent = `${appState.currentZoom.toFixed(1)}x`;
+    }
+}
+
+// Function to apply zoom to the camera
+async function applyZoom(zoomFactor) {
+    if (!appState.stream || !appState.zoomSupported) {
+        return;
+    }
+    
+    // Clamp zoom factor between 1.0 and max zoom
+    const targetZoom = Math.max(1.0, Math.min(zoomFactor, appState.maxZoom));
+    
+    try {
+        const track = appState.stream.getVideoTracks()[0];
+        if (track && track.applyConstraints) {
+            await track.applyConstraints({
+                advanced: [{ zoom: targetZoom }]
+            });
+            
+            // Update state
+            appState.currentZoom = targetZoom;
+            console.log(`Zoom applied: ${targetZoom}x`);
+            
+            // Update UI
+            updateZoomControls();
+        }
+    } catch (error) {
+        console.warn('Could not apply zoom constraints:', error.message);
+        // Fallback: just update the state without applying to the camera
+        appState.currentZoom = targetZoom;
+        updateZoomControls();
+    }
+}
+
+// Zoom in function
+function zoomIn() {
+    const zoomIncrement = 0.5;
+    const newZoom = Math.min(appState.currentZoom + zoomIncrement, appState.maxZoom);
+    
+    if (newZoom > appState.currentZoom) {
+        applyZoom(newZoom);
+    }
+}
+
+// Zoom out function
+function zoomOut() {
+    const zoomIncrement = 0.5;
+    const newZoom = Math.max(appState.currentZoom - zoomIncrement, 1.0);
+    
+    if (newZoom < appState.currentZoom) {
+        applyZoom(newZoom);
+    }
+}
+
 // Attach all event listeners
 function attachEventListeners() {
     elements.startCameraBtn.addEventListener('click', startCamera);
     elements.takePhotoBtn.addEventListener('click', takePhoto);
+    elements.zoomInBtn.addEventListener('click', zoomIn);
+    elements.zoomOutBtn.addEventListener('click', zoomOut);
     elements.saveMetadataBtn.addEventListener('click', handleSaveMetadata);
     
     // Add event listener for saving photo without form (only GPS and timestamp)
@@ -324,7 +428,7 @@ async function startCamera() {
         }
         
         // First try with rear (environment) camera at highest resolution
-        const constraints = { 
+        let constraints = { 
             video: { 
                 facingMode: 'environment',
                 width: { ideal: 4096 },  // Maximum resolution available
@@ -364,6 +468,9 @@ async function startCamera() {
             appState.imageCapture = new ImageCapture(track);
         }
         
+        // Check if zoom is supported
+        await initializeZoomCapabilities(track);
+        
         elements.takePhotoBtn.disabled = true; // Disable until location is obtained
         elements.startCameraBtn.disabled = true;
         showStatus('Cámara iniciada. Obteniendo ubicación...', 'success');
@@ -389,6 +496,36 @@ async function startCamera() {
         }
         appState.isCameraActive = false;
     }
+}
+
+// Function to initialize zoom capabilities for the camera
+async function initializeZoomCapabilities(track) {
+    if (!track) {
+        console.warn('No video track available for zoom initialization');
+        appState.zoomSupported = false;
+        appState.maxZoom = 1.0;
+        updateZoomControls();
+        return;
+    }
+
+    // Check if the track supports zoom
+    const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+    
+    if (capabilities.zoom) {
+        appState.zoomSupported = true;
+        // Set max zoom to the maximum supported by the camera, or 10x if no maximum is specified
+        appState.maxZoom = capabilities.zoom.max ? Math.min(capabilities.zoom.max, 10) : 10;
+        appState.currentZoom = 1.0; // Start at 1x zoom
+        
+        console.log(`Zoom supported. Max zoom: ${appState.maxZoom}x`);
+    } else {
+        console.log('Zoom not supported by this camera');
+        appState.zoomSupported = false;
+        appState.maxZoom = 1.0;
+    }
+    
+    // Update zoom controls to reflect current state
+    updateZoomControls();
 }
 
 // Attempt to get current location with enhanced precision and start watching for better readings
@@ -1174,6 +1311,10 @@ function newCapture() {
     
     // Stop location watching when starting a new capture
     stopLocationWatching();
+    
+    // Reset zoom state
+    appState.currentZoom = 1.0;
+    updateZoomControls();
     
     // Start camera automatically when returning to camera view
     if (!appState.isCameraActive) {
