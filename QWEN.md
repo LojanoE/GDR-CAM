@@ -1,157 +1,161 @@
 # GDR-CAM Project Context
 
 ## Project Overview
+GDR-CAM is a Progressive Web Application (PWA) for capturing photos with embedded metadata. The application allows users to take photos using their device's camera, fill out an observation form, and store all form data and GPS coordinates as EXIF metadata within the image file. The app works completely offline and can be installed on mobile devices and PCs.
 
-GDR-CAM is a Progressive Web App (PWA) for capturing photos with embedded metadata. The application allows users to take photos and fill out a form with observation details, which are then stored as EXIF metadata in the captured image. It's designed to work completely offline and is optimized for mobile devices.
+## Key Features
+- Camera capture with maximum resolution support (up to 4K)
+- GPS location embedding in image metadata
+- Observation form with fields for work front, coronation, activity type, and activity description
+- Metadata storage in EXIF format
+- Image rotation functionality
+- Direct saving to device gallery (with iOS-specific support)
+- Cross-platform compatibility
+- Offline functionality via Service Worker
 
-### Key Features:
-
-- **Photo Capture:** Uses device camera with support for both front and rear cameras (with fallbacks)
-- **Metadata Integration:** Form data (work front, coronation, observation type, activity) and GPS coordinates are embedded in EXIF data
-- **Offline Functionality:** Works without internet connection using service workers
-- **Cross-platform:** Compatible with mobile and desktop browsers
-- **Image Processing:** Adds timestamps and logos to captured images
-- **Metadata Verification:** Modal display to view embedded metadata
-- **Gallery Integration:** Automatic saving to device gallery with sharing API fallback
-- **Proper Image Orientation:** Corrects image orientation based on device rotation and EXIF data
-- **Installable PWA:** Full PWA functionality with proper manifest and service worker
-
-### Technologies Used:
-
-- **Frontend:** HTML5, CSS3, JavaScript
-- **Camera APIs:** `getUserMedia`, `ImageCapture`
-- **Metadata Libraries:** `exif.js`, `piexif.js`
-- **PWA Components:** Service Worker, Web App Manifest
-- **Geolocation:** GPS coordinate capture with accuracy
-- **File System:** Image saving with proper EXIF handling
+## Technologies Used
+- HTML5
+- CSS3
+- JavaScript (ES6+)
+- getUserMedia API for camera access
+- Canvas API for image processing
+- EXIF.js for reading metadata
+- piexif.js for writing metadata
+- Service Workers for offline functionality
+- Web App Manifest for PWA installation
+- File System Access API fallback for saving
 
 ## Project Structure
-
 ```
 GDR-CAM/
-├── index.html          # Main application page
-├── app.js              # Core application logic
-├── style.css           # Application styling
-├── exif.js             # EXIF metadata reading library
-├── piexif.js           # EXIF metadata writing library
-├── test.html           # Testing functionality page
-├── GEMINI.md           # Code assistant documentation
-├── README.md           # Project documentation
-├── sw.js               # (Not found - likely referenced in code)
-├── manifest.json       # (Not found - likely referenced in code)
-├── img/                # Image assets
-│   ├── ECUACORRIENTE.png
-│   ├── icon-512x512.png
-│   └── LOGO GDR.jpeg
-└── Python tools        # EXIF reading utilities
-    ├── read_metadata.py
-    ├── simple_exif_check.py
-    └── verify_metadata.py
+├── app.js                 # Main application logic
+├── exif.js               # Library for reading EXIF data
+├── index.html            # Main HTML structure
+├── manifest.json         # PWA configuration
+├── piexif.js             # Library for writing EXIF data
+├── style.css             # CSS styling
+├── sw.js                 # Service worker for offline functionality
+├── readme_metadata.py    # Python script for reading metadata
+├── GEMINI.md             # AI assistant context file
+├── img/                  # Image assets
+│   ├── ECUACORRIENTE.png # Logo image
+│   ├── icon-512x512.png  # App icon
+│   └── LOGO GDR.jpeg     # Logo image
+└── README.md             # Project documentation
 ```
 
-## Application Flow
+## Core Application Logic (app.js)
+The main application file contains:
+- Camera initialization with rear/front fallback
+- GPS location retrieval
+- Photo capture with ImageCapture API
+- Image orientation correction based on EXIF data
+- Metadata embedding (form data + GPS coordinates)
+- Image rotation functionality
+- Gallery saving with timestamp and logo overlay
+- Status messaging system
 
-1. **Camera Initialization:** On page load, automatically starts camera with rear-facing as default
-2. **Location Capture:** Gets GPS coordinates with high accuracy
-3. **Photo Capture:** Takes high-quality photo (up to 4096x2160) using `ImageCapture` API
-4. **Metadata Form:** User completes observation form with work details
-5. **EXIF Processing:** Embeds form data and GPS coordinates into image EXIF data
-6. **Image Enhancement:** Adds timestamp and logo overlay to image
-7. **Gallery Saving:** Automatically saves to device gallery with sharing API
-8. **Result Display:** Shows preview with option to view, save again, or take new photo
+## Default EXIF Tags Used in the App
+The application uses the following EXIF tags when embedding metadata:
 
-## Key Implementation Details
+### Form Data Tags:
+- **ExifIFD.UserComment** - Stores the JSON with form data (workFront, coronation, activityPerformed, observationCategory, location, timestamp)
 
-### Metadata Handling:
-- Uses `piexif.js` to embed JSON form data in `UserComment` EXIF field
-- GPS coordinates stored in standard EXIF GPS tags with high precision
-- Timestamps added in both EXIF and as visual overlay
-- Image orientation correction applied based on EXIF data
+### GPS Data Tags:
+- **GPSIFD.GPSVersionID** - Version of GPS tag (set to [2, 2, 0, 0])
+- **GPSIFD.GPSLatitudeRef** - Latitude reference (N/S)
+- **GPSIFD.GPSLatitude** - Latitude coordinates in DMS format
+- **GPSIFD.GPSLongitudeRef** - Longitude reference (E/W)
+- **GPSIFD.GPSLongitude** - Longitude coordinates in DMS format
+- **GPSIFD.GPSAltitudeRef** - Altitude reference (0 for above sea level, 1 for below)
+- **GPSIFD.GPSAltitude** - Altitude value
 
-### Camera Operations:
-- Prioritizes rear-facing camera at maximum resolution
-- Fallback to front-facing camera if rear is unavailable
-- Uses `ImageCapture` API for highest quality photos
-- Canvas fallback for compatibility
+### Date/Time Tags:
+- **ExifIFD.DateTimeOriginal** - Date and time when the original image was taken
+- **ImageIFD.DateTime** - Date and time of image creation
 
-### Form Fields:
-- Work Front: `work-front`
-- Coronation: `coronation`
-- Observation Category: `observation-category` (rutina/liberacion/novedad/importante)
-- Activity Performed: `activity-performed` (textarea)
+### Image Orientation:
+- The app handles image orientation through canvas manipulation and doesn't explicitly set the Orientation EXIF tag since the image is rotated in the canvas before saving
 
 ## Building and Running
+This is a client-side JavaScript application that runs directly in a web browser. No build step is required.
 
-This is a static web project with no build process required.
+### To run the application:
+1. Serve the files via a local HTTP server (not file://):
+   ```bash
+   # Using Python 3
+   python -m http.server 8000
+   
+   # Or using Node.js with serve
+   npx serve
+   
+   # Or using any other local server
+   ```
+2. Open the application in a modern browser at `http://localhost:8000`
+3. Allow camera and location permissions when prompted
 
-### Local Development:
-1. Serve files using a local web server (required for camera access and service workers)
-2. Recommended commands:
-   - Python: `python -m http.server 8000`
-   - Node: `npx serve`
-   - PHP: `php -S localhost:8000`
-
-### Important Notes:
-- Camera access requires HTTPS or localhost
-- Service worker registration happens automatically
-- EXIF metadata writing requires the piexif library
-- GPS functionality may not work in all environments
+### For development:
+- The application is designed to work offline after initial load
+- Service worker caches all necessary assets
+- Changes to JavaScript or CSS require a refresh and potentially service worker update
 
 ## Development Conventions
+- JavaScript follows standard ES6+ conventions
+- Error handling is implemented for camera access, location services, and metadata operations
+- The application prioritizes high-resolution image capture
+- GPS coordinates are stored with precision in EXIF format
+- Form data is stored in the UserComment EXIF field as JSON
+- UI elements are responsive and work on mobile and desktop
 
-- Single-page application structure
-- Mobile-first responsive design
-- Progressive enhancement approach
-- Offline-first architecture
-- Proper error handling for all user interactions
-- Loading indicators for long-running operations
-- Asynchronous operations with proper state management
+## Special Considerations
+- The app forces portrait orientation during operation
+- Automatic fallbacks exist for camera access (environment → user facing)
+- High-accuracy GPS is requested with timeout and age limits
+- Image rotation functionality preserves metadata
+- Logo and timestamp are added when saving to gallery but not to the preview
+- The app handles both Android and iOS devices with platform-specific saving logic
 
-## Testing and Validation
+## Metadata Handling
+- Form data is stored as JSON in the UserComment EXIF field
+- GPS coordinates are stored in standard EXIF GPS format
+- Date and time are stored in DateTimeOriginal field
+- Image orientation is corrected based on embedded EXIF orientation data
 
-The project includes Python scripts for EXIF metadata verification:
-- `read_metadata.py`: Reads EXIF data from images
-- `simple_exif_check.py`: Basic EXIF validation
-- `verify_metadata.py`: Interactive EXIF data verification
+## Offline Functionality
+- Service worker caches all application assets
+- Cache name includes version (currently v34)
+- Works offline after initial load
+- Navigation requests fall back to main page if network fails
 
-## PWA Files
+## Graphical Elements Added to Images
+When saving photos to the gallery, the application adds the following graphical elements:
 
-The application now includes two essential files for PWA functionality:
+### On image save:
+1. **Logo watermark** - Placed in the bottom-left corner of the image
+   - Logo used is "img/LOGO GDR.jpeg"
+   - Size adjusts proportionally (maximum 320px height or 15% of image height)
 
-### sw.js (Service Worker)
-- Caches essential application files for offline functionality
-- Handles network requests with cache-first strategy
-- Properly updates cache versions
-- Includes fallback for navigation requests
+2. **North direction indicator** - Placed in the bottom-center of the image
+   - Representation: Upward arrow symbol (⬆) followed by the letter "N"
+   - Color: Green with slight transparency (rgba(0, 255, 0, 0.9)) for better visibility
+   - Font: Bold Arial
+   - Location: Between the logo (bottom left) and timestamp (bottom right)
 
-### manifest.json (Web App Manifest)
-- Defines app name, icons, and display properties
-- Configures standalone display mode
-- Includes proper icon sizes and types
-- Sets theme colors and orientation
+3. **Timestamp** - Placed in the bottom-right corner of the image
+   - Format: Capture date and time (e.g., "2023:08:15 14:30:25")
+   - Font size scales with image size (between 20px and 80px)
+   - Color: White with slight transparency (rgba(255, 255, 255, 0.9))
 
-## Orientation Correction Implementation
+### Important:
+- These graphical elements (logo, north indicator, and timestamp) are only added when saving the photo to the gallery, not in the preview within the app
+- In the app preview, the image shows without these graphical elements
+- Image rotation can be done within the app, and the graphical elements maintain horizontally correct orientation regardless of image orientation
 
-The application now properly handles device rotation and image orientation:
-
-### Functions Added:
-- `correctImageOrientation()`: Reads EXIF orientation data and applies appropriate transformations
-- Modified `takePhoto()` to be asynchronous and apply orientation correction
-- Preserved existing `drawTimestampAndLogoOnImage()` orientation handling
-
-### How It Works:
-1. Captures image using device camera
-2. Reads EXIF orientation data immediately after capture
-3. Applies rotation/flip transformations based on EXIF data
-4. Stores properly oriented image for further processing
-5. Maintains correct orientation through all subsequent operations
-
-## Common Issues and Solutions
-
-1. **Camera Permissions:** Ensure proper permissions are granted in browser settings
-2. **GPS Accuracy:** High accuracy GPS may take time to acquire in new locations
-3. **EXIF Compatibility:** Some image editing tools may strip EXIF data
-4. **iOS Gallery:** Special handling for saving to iOS gallery is implemented
-5. **PWA Installation:** Proper service worker and manifest files are now included for reliable installation
-
-This project is designed for field observation work where metadata integrity and location accuracy are critical.
+## Testing
+To test the application functionality:
+1. Verify camera access works in the browser
+2. Test location services
+3. Take a photo and fill out the form
+4. Verify metadata is embedded correctly using the "View Metadatos" button
+5. Test saving to gallery
+6. Test rotation functionality

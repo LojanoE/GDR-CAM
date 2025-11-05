@@ -1114,30 +1114,41 @@ async function addTimestampAndLogoToImage(imageUrl) {
             // Draw the image on the canvas
             ctx.drawImage(img, 0, 0);
             
-            // Add the logo and timestamp to the image when saving 
+            // Add the logo, north direction indicator, and timestamp to the image when saving 
             const logo = new Image();
             logo.onload = function() {
                 const logoHeight = Math.min(320, canvas.height * 0.15); // Make logo proportional to image
                 const logoAspectRatio = logo.width / logo.height;
                 const logoWidth = logoHeight * logoAspectRatio;
-                const logoPadding = Math.min(25, canvas.width * 0.02, canvas.height * 0.02); // Make padding proportional to image
+                const padding = Math.min(25, canvas.width * 0.02, canvas.height * 0.02); // Make padding proportional to image
 
                 // Calculate positions for the logo in the bottom-left corner of the canvas
-                const logoX = logoPadding;
-                const logoY = canvas.height - logoHeight - logoPadding;
+                const logoX = padding;
+                const logoY = canvas.height - logoHeight - padding;
                 
                 // Draw logo with proper positioning
                 ctx.drawImage(logo, logoX, logoY, logoWidth, logoHeight);
 
-                // Prepare to draw timestamp text in the bottom-right corner
+                // Draw north direction indicator in the bottom center
                 const fontSize = Math.min(80, Math.max(20, Math.floor(canvas.height * 0.04))); // Scale font with image size
-                ctx.font = `${fontSize}px Arial`;
+                ctx.font = `bold ${fontSize}px Arial`;
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.9)'; // Red color for visibility
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+
+                const centerX = canvas.width / 2;
+                const northY = canvas.height - padding;
+                // Draw a simple north arrow symbol
+                ctx.fillText('⬆', centerX, northY - fontSize * 0.1);
+                ctx.fillText('N', centerX, northY);
+                
+                // Prepare to draw timestamp text in the bottom-right corner
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'bottom';
 
-                const timestampX = canvas.width - logoPadding;
-                const timestampY = canvas.height - logoPadding;
+                const timestampX = canvas.width - padding;
+                const timestampY = canvas.height - padding;
                 ctx.fillText(timestamp, timestampX, timestampY);
 
                 // Convert canvas back to data URL
@@ -1151,15 +1162,29 @@ async function addTimestampAndLogoToImage(imageUrl) {
             };
             
             logo.onerror = function() {
-                // If the logo fails to load, still draw the timestamp
+                // If the logo fails to load, still draw the timestamp and north indicator
                 const fontSize = Math.min(80, Math.max(20, Math.floor(canvas.height * 0.04))); // Scale font with image size
-                ctx.font = `${fontSize}px Arial`;
+                const padding = Math.min(25, canvas.width * 0.02, canvas.height * 0.02); // Make padding proportional to image
+                
+                // Draw north direction indicator in the bottom center
+                ctx.font = `bold ${fontSize}px Arial`;
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.9)'; // Red color for visibility
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+
+                const centerX = canvas.width / 2;
+                const northY = canvas.height - padding;
+                // Draw a simple north arrow symbol
+                ctx.fillText('⬆', centerX, northY - fontSize * 0.1);
+                ctx.fillText('N', centerX, northY);
+
+                // Prepare to draw timestamp text in the bottom-right corner
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'bottom';
 
-                const timestampX = canvas.width - 15;
-                const timestampY = canvas.height - 15;
+                const timestampX = canvas.width - padding;
+                const timestampY = canvas.height - padding;
                 ctx.fillText(timestamp, timestampX, timestampY);
 
                 // Convert canvas back to data URL
@@ -1224,30 +1249,41 @@ async function applyRotationToImage(imageUrl, rotationAngle) {
             // Restore the initial context state to draw text and logo in horizontal orientation
             ctx.restore();
             
-            // Draw the logo and timestamp horizontally on the rotated image when saving
+            // Draw the logo, north direction indicator, and timestamp horizontally on the rotated image when saving
             const logo = new Image();
             logo.onload = function() {
                 const logoHeight = Math.min(320, canvas.height * 0.15); // Make logo proportional to image
                 const logoAspectRatio = logo.width / logo.height;
                 const logoWidth = logoHeight * logoAspectRatio;
-                const logoPadding = Math.min(25, canvas.width * 0.02, canvas.height * 0.02); // Make padding proportional to image
+                const padding = Math.min(25, canvas.width * 0.02, canvas.height * 0.02); // Make padding proportional to image
 
                 // Calculate positions for the logo in the bottom-left corner of the canvas
-                const logoX = logoPadding;
-                const logoY = canvas.height - logoHeight - logoPadding;
+                const logoX = padding;
+                const logoY = canvas.height - logoHeight - padding;
                 
                 // Draw logo with proper positioning
                 ctx.drawImage(logo, logoX, logoY, logoWidth, logoHeight);
 
-                // Prepare to draw timestamp text in the bottom-right corner
+                // Draw north direction indicator in the bottom center
                 const fontSize = Math.min(80, Math.max(20, Math.floor(canvas.height * 0.04))); // Scale font with image size
-                ctx.font = `${fontSize}px Arial`;
+                ctx.font = `bold ${fontSize}px Arial`;
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.9)'; // Red color for visibility
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+
+                const centerX = canvas.width / 2;
+                const northY = canvas.height - padding;
+                // Draw a simple north arrow symbol
+                ctx.fillText('⬆', centerX, northY - fontSize * 0.1);
+                ctx.fillText('N', centerX, northY);
+
+                // Prepare to draw timestamp text in the bottom-right corner
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'bottom';
 
-                const timestampX = canvas.width - logoPadding;
-                const timestampY = canvas.height - logoPadding;
+                const timestampX = canvas.width - padding;
+                const timestampY = canvas.height - padding;
                 ctx.fillText(timestamp, timestampX, timestampY);
 
                 // Convert canvas back to data URL
@@ -1261,15 +1297,29 @@ async function applyRotationToImage(imageUrl, rotationAngle) {
             };
             
             logo.onerror = function() {
-                // If the logo fails to load, still draw the timestamp
+                // If the logo fails to load, still draw the timestamp and north indicator
                 const fontSize = Math.min(80, Math.max(20, Math.floor(canvas.height * 0.04))); // Scale font with image size
-                ctx.font = `${fontSize}px Arial`;
+                const padding = Math.min(25, canvas.width * 0.02, canvas.height * 0.02); // Make padding proportional to image
+                
+                // Draw north direction indicator in the bottom center
+                ctx.font = `bold ${fontSize}px Arial`;
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.9)'; // Red color for visibility
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+
+                const centerX = canvas.width / 2;
+                const northY = canvas.height - padding;
+                // Draw a simple north arrow symbol
+                ctx.fillText('⬆', centerX, northY - fontSize * 0.1);
+                ctx.fillText('N', centerX, northY);
+
+                // Prepare to draw timestamp text in the bottom-right corner
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'bottom';
 
-                const timestampX = canvas.width - 15;
-                const timestampY = canvas.height - 15;
+                const timestampX = canvas.width - padding;
+                const timestampY = canvas.height - padding;
                 ctx.fillText(timestamp, timestampX, timestampY);
 
                 // Convert canvas back to data URL
