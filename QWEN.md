@@ -19,8 +19,8 @@ GDR-CAM is a Progressive Web Application (PWA) for capturing photos with embedde
 - JavaScript (ES6+)
 - getUserMedia API for camera access
 - Canvas API for image processing
-- EXIF.js for reading EXIF data
-- piexif.js for writing EXIF data
+- EXIF.js for reading metadata
+- piexif.js for writing metadata
 - Service Workers for offline functionality
 - Web App Manifest for PWA installation
 - File System Access API fallback for saving
@@ -123,7 +123,7 @@ This is a client-side JavaScript application that runs directly in a web browser
 
 ## Offline Functionality
 - Service worker caches all application assets
-- Cache name includes version (currently v39)
+- Cache name includes version (currently v34)
 - Works offline after initial load
 - Navigation requests fall back to main page if network fails
 
