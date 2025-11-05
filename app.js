@@ -1132,15 +1132,55 @@ async function addTimestampAndLogoToImage(imageUrl) {
                 // Draw north direction indicator in the bottom center
                 const fontSize = Math.min(80, Math.max(20, Math.floor(canvas.height * 0.04))); // Scale font with image size
                 ctx.font = `bold ${fontSize}px Arial`;
-                ctx.fillStyle = 'rgba(0, 255, 0, 0.9)'; // Red color for visibility
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.9)'; // Green color for visibility
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
 
                 const centerX = canvas.width / 2;
                 const northY = canvas.height - padding;
-                // Draw a simple north arrow symbol
-                ctx.fillText('⬆', centerX, northY - fontSize * 0.1);
-                ctx.fillText('N', centerX, northY);
+                
+                // Extract GPS data from EXIF if available
+                let gpsInfo = 'N'; // Default if no GPS data
+                if (exifObj.GPS) {
+                    // Get GPS coordinates from EXIF data
+                    let lat = null, lng = null;
+                    let latRef = null, lngRef = null;
+                    
+                    // Process GPS coordinates from EXIF
+                    if (exifObj.GPS[piexif.GPSIFD.GPSLatitude]) {
+                        const gpsLat = exifObj.GPS[piexif.GPSIFD.GPSLatitude];
+                        if (Array.isArray(gpsLat) && gpsLat.length === 3) {
+                            // Calculate decimal degrees from DMS (Degrees, Minutes, Seconds)
+                            const deg = gpsLat[0][0] / gpsLat[0][1];
+                            const min = gpsLat[1][0] / gpsLat[1][1];
+                            const sec = gpsLat[2][0] / gpsLat[2][1];
+                            lat = deg + (min / 60) + (sec / 3600);
+                        }
+                    }
+                    
+                    if (exifObj.GPS[piexif.GPSIFD.GPSLongitude]) {
+                        const gpsLng = exifObj.GPS[piexif.GPSIFD.GPSLongitude];
+                        if (Array.isArray(gpsLng) && gpsLng.length === 3) {
+                            // Calculate decimal degrees from DMS (Degrees, Minutes, Seconds)
+                            const deg = gpsLng[0][0] / gpsLng[0][1];
+                            const min = gpsLng[1][0] / gpsLng[1][1];
+                            const sec = gpsLng[2][0] / gpsLng[2][1];
+                            lng = deg + (min / 60) + (sec / 3600);
+                        }
+                    }
+                    
+                    latRef = exifObj.GPS[piexif.GPSIFD.GPSLatitudeRef];
+                    lngRef = exifObj.GPS[piexif.GPSIFD.GPSLongitudeRef];
+                    
+                    // Format GPS coordinates if available
+                    if (lat !== null && lng !== null && latRef && lngRef) {
+                        gpsInfo = `N ${Math.abs(lat).toFixed(4)}° ${latRef}, ${Math.abs(lng).toFixed(4)}° ${lngRef}`;
+                    }
+                }
+                
+                // Draw a simple north arrow symbol above the GPS info
+                ctx.fillText('⬆', centerX, northY - fontSize * 0.8);
+                ctx.fillText(gpsInfo, centerX, northY);
                 
                 // Prepare to draw timestamp text in the bottom-right corner
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
@@ -1168,15 +1208,55 @@ async function addTimestampAndLogoToImage(imageUrl) {
                 
                 // Draw north direction indicator in the bottom center
                 ctx.font = `bold ${fontSize}px Arial`;
-                ctx.fillStyle = 'rgba(0, 255, 0, 0.9)'; // Red color for visibility
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.9)'; // Green color for visibility
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
 
                 const centerX = canvas.width / 2;
                 const northY = canvas.height - padding;
-                // Draw a simple north arrow symbol
-                ctx.fillText('⬆', centerX, northY - fontSize * 0.1);
-                ctx.fillText('N', centerX, northY);
+                
+                // Extract GPS data from EXIF if available
+                let gpsInfo = 'N'; // Default if no GPS data
+                if (exifObj.GPS) {
+                    // Get GPS coordinates from EXIF data
+                    let lat = null, lng = null;
+                    let latRef = null, lngRef = null;
+                    
+                    // Process GPS coordinates from EXIF
+                    if (exifObj.GPS[piexif.GPSIFD.GPSLatitude]) {
+                        const gpsLat = exifObj.GPS[piexif.GPSIFD.GPSLatitude];
+                        if (Array.isArray(gpsLat) && gpsLat.length === 3) {
+                            // Calculate decimal degrees from DMS (Degrees, Minutes, Seconds)
+                            const deg = gpsLat[0][0] / gpsLat[0][1];
+                            const min = gpsLat[1][0] / gpsLat[1][1];
+                            const sec = gpsLat[2][0] / gpsLat[2][1];
+                            lat = deg + (min / 60) + (sec / 3600);
+                        }
+                    }
+                    
+                    if (exifObj.GPS[piexif.GPSIFD.GPSLongitude]) {
+                        const gpsLng = exifObj.GPS[piexif.GPSIFD.GPSLongitude];
+                        if (Array.isArray(gpsLng) && gpsLng.length === 3) {
+                            // Calculate decimal degrees from DMS (Degrees, Minutes, Seconds)
+                            const deg = gpsLng[0][0] / gpsLng[0][1];
+                            const min = gpsLng[1][0] / gpsLng[1][1];
+                            const sec = gpsLng[2][0] / gpsLng[2][1];
+                            lng = deg + (min / 60) + (sec / 3600);
+                        }
+                    }
+                    
+                    latRef = exifObj.GPS[piexif.GPSIFD.GPSLatitudeRef];
+                    lngRef = exifObj.GPS[piexif.GPSIFD.GPSLongitudeRef];
+                    
+                    // Format GPS coordinates if available
+                    if (lat !== null && lng !== null && latRef && lngRef) {
+                        gpsInfo = `N ${Math.abs(lat).toFixed(4)}° ${latRef}, ${Math.abs(lng).toFixed(4)}° ${lngRef}`;
+                    }
+                }
+                
+                // Draw a simple north arrow symbol above the GPS info
+                ctx.fillText('⬆', centerX, northY - fontSize * 0.8);
+                ctx.fillText(gpsInfo, centerX, northY);
 
                 // Prepare to draw timestamp text in the bottom-right corner
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
@@ -1267,15 +1347,55 @@ async function applyRotationToImage(imageUrl, rotationAngle) {
                 // Draw north direction indicator in the bottom center
                 const fontSize = Math.min(80, Math.max(20, Math.floor(canvas.height * 0.04))); // Scale font with image size
                 ctx.font = `bold ${fontSize}px Arial`;
-                ctx.fillStyle = 'rgba(0, 255, 0, 0.9)'; // Red color for visibility
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.9)'; // Green color for visibility
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
 
                 const centerX = canvas.width / 2;
                 const northY = canvas.height - padding;
-                // Draw a simple north arrow symbol
-                ctx.fillText('⬆', centerX, northY - fontSize * 0.1);
-                ctx.fillText('N', centerX, northY);
+                
+                // Extract GPS data from EXIF if available
+                let gpsInfo = 'N'; // Default if no GPS data
+                if (exifObj.GPS) {
+                    // Get GPS coordinates from EXIF data
+                    let lat = null, lng = null;
+                    let latRef = null, lngRef = null;
+                    
+                    // Process GPS coordinates from EXIF
+                    if (exifObj.GPS[piexif.GPSIFD.GPSLatitude]) {
+                        const gpsLat = exifObj.GPS[piexif.GPSIFD.GPSLatitude];
+                        if (Array.isArray(gpsLat) && gpsLat.length === 3) {
+                            // Calculate decimal degrees from DMS (Degrees, Minutes, Seconds)
+                            const deg = gpsLat[0][0] / gpsLat[0][1];
+                            const min = gpsLat[1][0] / gpsLat[1][1];
+                            const sec = gpsLat[2][0] / gpsLat[2][1];
+                            lat = deg + (min / 60) + (sec / 3600);
+                        }
+                    }
+                    
+                    if (exifObj.GPS[piexif.GPSIFD.GPSLongitude]) {
+                        const gpsLng = exifObj.GPS[piexif.GPSIFD.GPSLongitude];
+                        if (Array.isArray(gpsLng) && gpsLng.length === 3) {
+                            // Calculate decimal degrees from DMS (Degrees, Minutes, Seconds)
+                            const deg = gpsLng[0][0] / gpsLng[0][1];
+                            const min = gpsLng[1][0] / gpsLng[1][1];
+                            const sec = gpsLng[2][0] / gpsLng[2][1];
+                            lng = deg + (min / 60) + (sec / 3600);
+                        }
+                    }
+                    
+                    latRef = exifObj.GPS[piexif.GPSIFD.GPSLatitudeRef];
+                    lngRef = exifObj.GPS[piexif.GPSIFD.GPSLongitudeRef];
+                    
+                    // Format GPS coordinates if available
+                    if (lat !== null && lng !== null && latRef && lngRef) {
+                        gpsInfo = `N ${Math.abs(lat).toFixed(4)}° ${latRef}, ${Math.abs(lng).toFixed(4)}° ${lngRef}`;
+                    }
+                }
+                
+                // Draw a simple north arrow symbol above the GPS info
+                ctx.fillText('⬆', centerX, northY - fontSize * 0.8);
+                ctx.fillText(gpsInfo, centerX, northY);
 
                 // Prepare to draw timestamp text in the bottom-right corner
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
@@ -1303,15 +1423,55 @@ async function applyRotationToImage(imageUrl, rotationAngle) {
                 
                 // Draw north direction indicator in the bottom center
                 ctx.font = `bold ${fontSize}px Arial`;
-                ctx.fillStyle = 'rgba(0, 255, 0, 0.9)'; // Red color for visibility
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.9)'; // Green color for visibility
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
 
                 const centerX = canvas.width / 2;
                 const northY = canvas.height - padding;
-                // Draw a simple north arrow symbol
-                ctx.fillText('⬆', centerX, northY - fontSize * 0.1);
-                ctx.fillText('N', centerX, northY);
+                
+                // Extract GPS data from EXIF if available
+                let gpsInfo = 'N'; // Default if no GPS data
+                if (exifObj.GPS) {
+                    // Get GPS coordinates from EXIF data
+                    let lat = null, lng = null;
+                    let latRef = null, lngRef = null;
+                    
+                    // Process GPS coordinates from EXIF
+                    if (exifObj.GPS[piexif.GPSIFD.GPSLatitude]) {
+                        const gpsLat = exifObj.GPS[piexif.GPSIFD.GPSLatitude];
+                        if (Array.isArray(gpsLat) && gpsLat.length === 3) {
+                            // Calculate decimal degrees from DMS (Degrees, Minutes, Seconds)
+                            const deg = gpsLat[0][0] / gpsLat[0][1];
+                            const min = gpsLat[1][0] / gpsLat[1][1];
+                            const sec = gpsLat[2][0] / gpsLat[2][1];
+                            lat = deg + (min / 60) + (sec / 3600);
+                        }
+                    }
+                    
+                    if (exifObj.GPS[piexif.GPSIFD.GPSLongitude]) {
+                        const gpsLng = exifObj.GPS[piexif.GPSIFD.GPSLongitude];
+                        if (Array.isArray(gpsLng) && gpsLng.length === 3) {
+                            // Calculate decimal degrees from DMS (Degrees, Minutes, Seconds)
+                            const deg = gpsLng[0][0] / gpsLng[0][1];
+                            const min = gpsLng[1][0] / gpsLng[1][1];
+                            const sec = gpsLng[2][0] / gpsLng[2][1];
+                            lng = deg + (min / 60) + (sec / 3600);
+                        }
+                    }
+                    
+                    latRef = exifObj.GPS[piexif.GPSIFD.GPSLatitudeRef];
+                    lngRef = exifObj.GPS[piexif.GPSIFD.GPSLongitudeRef];
+                    
+                    // Format GPS coordinates if available
+                    if (lat !== null && lng !== null && latRef && lngRef) {
+                        gpsInfo = `N ${Math.abs(lat).toFixed(4)}° ${latRef}, ${Math.abs(lng).toFixed(4)}° ${lngRef}`;
+                    }
+                }
+                
+                // Draw a simple north arrow symbol above the GPS info
+                ctx.fillText('⬆', centerX, northY - fontSize * 0.8);
+                ctx.fillText(gpsInfo, centerX, northY);
 
                 // Prepare to draw timestamp text in the bottom-right corner
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';

@@ -136,7 +136,9 @@ When saving photos to the gallery, the application adds the following graphical 
    - Size adjusts proportionally (maximum 320px height or 15% of image height)
 
 2. **North direction indicator** - Placed in the bottom-center of the image
-   - Representation: Upward arrow symbol (⬆) followed by the letter "N"
+   - Representation: Upward arrow symbol (⬆) followed by GPS coordinates if available
+   - Format when GPS data is present: `N [lat]° [N/S], [lng]° [E/W]` (e.g., N 0.1234° N, 0.5678° W)
+   - Fallback when no GPS data: Simple "N" notation
    - Color: Green with slight transparency (rgba(0, 255, 0, 0.9)) for better visibility
    - Font: Bold Arial
    - Location: Between the logo (bottom left) and timestamp (bottom right)
