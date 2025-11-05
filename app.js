@@ -7,6 +7,8 @@ const appState = {
     capturedPhotoDataUrl: null,
     photoWithMetadata: null,
     currentLocation: null,
+    bestLocation: null, // Track the best GPS reading found so far
+    locationWatcher: null, // Store the GPS watcher ID
     isCameraActive: false,
     imageRotation: 0, // Track current rotation angle
     originalPhotoWithMetadata: null // Store the original image for rotation operations
@@ -143,15 +145,21 @@ function attachEventListeners() {
     
     // Add event listener for saving photo without form (only GPS and timestamp)
     elements.saveWithoutFormBtn.addEventListener('click', () => {
+        // Use the best location found during the form filling period
+        const bestLocationForMetadata = appState.bestLocation || appState.currentLocation;
+        
         // Create metadata object with just GPS and timestamp
         const metadata = {
-            location: appState.currentLocation,
+            location: bestLocationForMetadata,
             timestamp: new Date().toLocaleString()
         };
         
         // Show loading indicator
         elements.saveWithoutFormBtn.innerHTML = '<span class="loading"></span> Procesando...';
         elements.saveWithoutFormBtn.disabled = true;
+        
+        // Stop GPS watching as we're now saving the metadata
+        stopLocationWatching();
         
         // Add metadata to the image
         addMetadataToImage(appState.capturedPhotoDataUrl, metadata);
@@ -383,7 +391,7 @@ async function startCamera() {
     }
 }
 
-// Attempt to get current location with enhanced precision
+// Attempt to get current location with enhanced precision and start watching for better readings
 function getCurrentLocation() {
     return new Promise((resolve, reject) => {
         const gpsDisplay = document.getElementById('gps-coords');
@@ -402,11 +410,17 @@ function getCurrentLocation() {
                         speed: position.coords.speed,                          // Speed in meters/second
                         timestamp: position.timestamp                          // Timestamp of location fix
                     };
-                    console.log('Location obtained:', appState.currentLocation);
+                    // Initialize best location with the first reading
+                    appState.bestLocation = {...appState.currentLocation};
+                    console.log('Initial location obtained:', appState.currentLocation);
                     showStatus(`Ubicación obtenida. Precisión: ±${Math.round(appState.currentLocation.accuracy)}m. Puede tomar una foto.`, 'success');
                     // Display coordinates with higher precision (7 decimal places for better accuracy)
                     gpsDisplay.value = `${position.coords.latitude.toFixed(7)}, ${position.coords.longitude.toFixed(7)}`;
                     elements.takePhotoBtn.disabled = false; // Enable photo taking
+                    
+                    // Start watching for more precise locations after the initial fix
+                    startLocationWatching(gpsDisplay);
+                    
                     resolve(position);
                 },
                 (error) => {
@@ -426,7 +440,7 @@ function getCurrentLocation() {
                             errorMessage = 'Ocurrió un error desconocido al obtener la ubicación.';
                             break;
                     }
-                    console.warn('Could not obtain location:', error.message);
+                    console.warn('Could not obtain initial location:', error.message);
                     showStatus(errorMessage + ' Puede tomar la foto sin datos de GPS.', 'error');
                     gpsDisplay.value = 'No se pudo obtener la ubicación.';
                     elements.takePhotoBtn.disabled = false; // Enable photo taking anyway
@@ -446,6 +460,67 @@ function getCurrentLocation() {
             resolve(null); // Resolve the promise since geolocation isn't supported
         }
     });
+}
+
+// Function to start watching for more precise GPS locations
+function startLocationWatching(gpsDisplay) {
+    if (appState.locationWatcher) {
+        // Clear any existing watcher
+        navigator.geolocation.clearWatch(appState.locationWatcher);
+    }
+    
+    // Only start watching if we have initial location permission
+    appState.locationWatcher = navigator.geolocation.watchPosition(
+        (position) => {
+            // Create a new location object with all available data
+            const newPosition = {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                accuracy: position.coords.accuracy,
+                altitude: position.coords.altitude,
+                altitudeAccuracy: position.coords.altitudeAccuracy,
+                heading: position.coords.heading,
+                speed: position.coords.speed,
+                timestamp: position.timestamp
+            };
+            
+            // Check if this is the best location we've received so far (by accuracy)
+            if (!appState.bestLocation || (newPosition.accuracy && newPosition.accuracy < appState.bestLocation.accuracy)) {
+                console.log(`Better location found! Previous: ±${appState.bestLocation.accuracy}m, New: ±${newPosition.accuracy}m`);
+                appState.bestLocation = {...newPosition};
+                
+                // Update the display with the improved accuracy
+                if (gpsDisplay) {
+                    gpsDisplay.value = `${newPosition.latitude.toFixed(7)}, ${newPosition.longitude.toFixed(7)} (±${Math.round(newPosition.accuracy)}m)`;
+                }
+                
+                // Update status to indicate improved accuracy
+                showStatus(`Ubicación actualizada. Mejor precisión: ±${Math.round(newPosition.accuracy)}m`, 'success');
+            } else {
+                // Still update the display if it doesn't already show the accuracy
+                if (gpsDisplay && !gpsDisplay.value.includes('±')) {
+                    gpsDisplay.value = `${newPosition.latitude.toFixed(7)}, ${newPosition.longitude.toFixed(7)} (±${Math.round(newPosition.accuracy)}m)`;
+                }
+            }
+        },
+        (error) => {
+            console.warn('Error in location watching:', error.message);
+            // Continue operation even if location updates fail
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 30000,      // Timeout for each update
+            maximumAge: 0        // Don't use cached positions
+        }
+    );
+}
+
+// Function to stop watching GPS locations when no longer needed
+function stopLocationWatching() {
+    if (appState.locationWatcher) {
+        navigator.geolocation.clearWatch(appState.locationWatcher);
+        appState.locationWatcher = null;
+    }
 }
 
 // Take photo
@@ -487,6 +562,12 @@ async function takePhoto() {
             elements.takePhotoBtn.disabled = true;
             elements.startCameraBtn.disabled = false;
             appState.isCameraActive = false;
+            
+            // Update the GPS display with the best location found so far
+            if (appState.bestLocation) {
+                const gpsDisplay = document.getElementById('gps-coords');
+                gpsDisplay.value = `${appState.bestLocation.latitude.toFixed(7)}, ${appState.bestLocation.longitude.toFixed(7)} (±${Math.round(appState.bestLocation.accuracy)}m)`;
+            }
         } catch (error) {
             console.error('Error processing the captured image:', error);
             showStatus('Error al procesar la imagen capturada.', 'error');
@@ -551,19 +632,25 @@ function handleSaveMetadata() {
         return;
     }
     
+    // Use the best location found during the form filling period
+    const bestLocationForMetadata = appState.bestLocation || appState.currentLocation;
+    
     // Create metadata object
     const metadata = {
         workFront,
         coronation,
         activityPerformed,
         observationCategory,
-        location: appState.currentLocation,
+        location: bestLocationForMetadata,
         timestamp: new Date().toLocaleString() // Using local time format instead of ISO string
     };
     
     // Show loading indicator
     elements.saveMetadataBtn.innerHTML = '<span class="loading"></span> Procesando...';
     elements.saveMetadataBtn.disabled = true;
+    
+    // Stop GPS watching as we're now saving the metadata
+    stopLocationWatching();
     
     // Add metadata to image
     addMetadataToImage(appState.capturedPhotoDataUrl, metadata);
@@ -1084,6 +1171,9 @@ function newCapture() {
     // Reset rotation state
     appState.imageRotation = 0;
     appState.originalPhotoWithMetadata = null;
+    
+    // Stop location watching when starting a new capture
+    stopLocationWatching();
     
     // Start camera automatically when returning to camera view
     if (!appState.isCameraActive) {

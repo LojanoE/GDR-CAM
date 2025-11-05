@@ -132,3 +132,8 @@ Recent enhancements to GPS precision include:
 - Display of GPS accuracy information on images (±X meters)
 - Higher precision calculation of coordinates using rational values with more significant digits
 - Proper handling of GPS accuracy data when available
+- Continuous GPS monitoring during form filling to capture the most accurate location reading
+- Implementation of a GPS "watcher" that tracks the best available location (lowest accuracy value) while the user completes the form
+- Real-time display of GPS accuracy updates during form completion
+- Automatic stopping of GPS watching when metadata is saved or when moving to a new capture
+- Improved location accuracy by allowing extended time for GPS signal refinement during form completion
