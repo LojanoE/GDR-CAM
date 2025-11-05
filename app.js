@@ -68,6 +68,24 @@ function attachEventListeners() {
     elements.startCameraBtn.addEventListener('click', startCamera);
     elements.takePhotoBtn.addEventListener('click', takePhoto);
     elements.saveMetadataBtn.addEventListener('click', handleSaveMetadata);
+    
+    // Add event listener for saving photo without form (only GPS and timestamp)
+    document.getElementById('save-photo-without-form').addEventListener('click', () => {
+        // Create metadata object with just GPS and timestamp
+        const metadata = {
+            location: appState.currentLocation,
+            timestamp: new Date().toLocaleString()
+        };
+        
+        // Show loading indicator
+        const saveWithoutFormBtn = document.getElementById('save-photo-without-form');
+        saveWithoutFormBtn.innerHTML = '<span class="loading"></span> Procesando...';
+        saveWithoutFormBtn.disabled = true;
+        
+        // Add metadata to the image
+        addMetadataToImage(appState.capturedPhotoDataUrl, metadata);
+    });
+    
     elements.newCaptureBtn.addEventListener('click', newCapture);
     elements.downloadPhotoBtn.addEventListener('click', () => {
         if (!appState.photoWithMetadata) {
