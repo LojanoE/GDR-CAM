@@ -10,15 +10,11 @@ GDR-CAM is a Progressive Web App (PWA) for capturing photos with embedded metada
 - **Metadata Integration:** Form data (work front, coronation, observation type, activity) and GPS coordinates are embedded in EXIF data
 - **Offline Functionality:** Works without internet connection using service workers
 - **Cross-platform:** Compatible with mobile and desktop browsers
-- **Image Processing:** Adds timestamps, logos, and north orientation indicators to captured images
+- **Image Processing:** Adds timestamps and logos to captured images
 - **Metadata Verification:** Modal display to view embedded metadata
 - **Gallery Integration:** Automatic saving to device gallery with sharing API fallback
 - **Proper Image Orientation:** Corrects image orientation based on device rotation and EXIF data
 - **Installable PWA:** Full PWA functionality with proper manifest and service worker
-- **Screen Rotation Locking:** Mobile orientation locked to portrait mode for consistent user experience
-- **Image Rotation Controls:** Manual rotation controls before saving for user orientation confirmation
-- **Label Positioning:** Timestamp and logo always appear horizontally regardless of image orientation
-- **North Orientation Indicator:** Displays compass direction (N) or bearing in degrees between logo and timestamp
 
 ### Technologies Used:
 
@@ -39,12 +35,10 @@ GDR-CAM/
 ├── exif.js             # EXIF metadata reading library
 ├── piexif.js           # EXIF metadata writing library
 ├── test.html           # Testing functionality page
-├── test_orientation.html # Orientation testing page
 ├── GEMINI.md           # Code assistant documentation
-├── QWEN.md             # Updated project context
 ├── README.md           # Project documentation
-├── sw.js               # Service worker file
-├── manifest.json       # Web App Manifest
+├── sw.js               # (Not found - likely referenced in code)
+├── manifest.json       # (Not found - likely referenced in code)
 ├── img/                # Image assets
 │   ├── ECUACORRIENTE.png
 │   ├── icon-512x512.png
@@ -57,24 +51,22 @@ GDR-CAM/
 
 ## Application Flow
 
-1. **Camera Initialization:** On page load, automatically starts camera with rear-facing as default and locks screen to portrait
+1. **Camera Initialization:** On page load, automatically starts camera with rear-facing as default
 2. **Location Capture:** Gets GPS coordinates with high accuracy
 3. **Photo Capture:** Takes high-quality photo (up to 4096x2160) using `ImageCapture` API
 4. **Metadata Form:** User completes observation form with work details
-5. **EXIF Processing:** Embeds form data and GPS coordinates into image EXIF data (without timestamp/logo/north indicator yet)
-6. **Image Preview:** Shows preview without timestamp/logo initially
-7. **Orientation Confirmation:** User can rotate image using controls if needed
-8. **Gallery Saving:** When user clicks "Guardar en Galería", timestamp, logo, and north orientation indicator are added and image is saved
-9. **Result Display:** Shows preview with option to view, save again, or take new photo
+5. **EXIF Processing:** Embeds form data and GPS coordinates into image EXIF data
+6. **Image Enhancement:** Adds timestamp and logo overlay to image
+7. **Gallery Saving:** Automatically saves to device gallery with sharing API
+8. **Result Display:** Shows preview with option to view, save again, or take new photo
 
 ## Key Implementation Details
 
 ### Metadata Handling:
 - Uses `piexif.js` to embed JSON form data in `UserComment` EXIF field
 - GPS coordinates stored in standard EXIF GPS tags with high precision
-- Timestamps added only when saving to gallery (after orientation confirmation)
+- Timestamps added in both EXIF and as visual overlay
 - Image orientation correction applied based on EXIF data
-- North orientation indicator (N or bearing in degrees) displayed between logo and timestamp
 
 ### Camera Operations:
 - Prioritizes rear-facing camera at maximum resolution
@@ -87,18 +79,6 @@ GDR-CAM/
 - Coronation: `coronation`
 - Observation Category: `observation-category` (rutina/liberacion/novedad/importante)
 - Activity Performed: `activity-performed` (textarea)
-
-### Orientation and Rotation:
-- Screen automatically locked to portrait mode on mobile devices
-- New "Girar Izquierda" and "Girar Derecha" buttons in result section
-- Rotation applied to original image with metadata preserved
-- Timestamp and logo always remain horizontal regardless of image orientation
-- Timestamp and logo added only when saving to gallery (not during preview)
-
-### Gallery Saving:
-- On Android: Uses download method which saves to Downloads folder (typically synced with gallery)
-- On other platforms: Uses download method or File System Access API if available
-- No automatic sharing - user confirms orientation before saving
 
 ## Building and Running
 
@@ -116,7 +96,6 @@ This is a static web project with no build process required.
 - Service worker registration happens automatically
 - EXIF metadata writing requires the piexif library
 - GPS functionality may not work in all environments
-- Screen orientation locking requires user permission in some browsers
 
 ## Development Conventions
 
@@ -134,7 +113,6 @@ The project includes Python scripts for EXIF metadata verification:
 - `read_metadata.py`: Reads EXIF data from images
 - `simple_exif_check.py`: Basic EXIF validation
 - `verify_metadata.py`: Interactive EXIF data verification
-- `test_orientation.html`: Test page for orientation functionality
 
 ## PWA Files
 
@@ -168,26 +146,6 @@ The application now properly handles device rotation and image orientation:
 4. Stores properly oriented image for further processing
 5. Maintains correct orientation through all subsequent operations
 
-## Screen Rotation Lock and Image Rotation Controls
-
-### Screen Rotation Locking:
-- New `lockScreenOrientation()` function implemented
-- Locks screen to portrait mode on app load
-- Includes fallback CSS for browsers without Screen Orientation API support
-- Automatically unlocks when page is hidden or unloaded
-
-### Image Rotation Controls:
-- Added buttons in result section: "Girar Izquierda" and "Girar Derecha"
-- New `rotateImage(angle)` function to handle image rotation
-- Rotation state tracked in `appState.imageRotation`
-- EXIF metadata preserved during rotation operations
-- Timestamp and logo always remain horizontal regardless of rotation
-
-### Label Positioning:
-- Timestamp and logo added only when saving to gallery (not during preview)
-- Horizontal positioning maintained regardless of image rotation
-- Applied after user confirms orientation with rotation controls
-
 ## Common Issues and Solutions
 
 1. **Camera Permissions:** Ensure proper permissions are granted in browser settings
@@ -195,7 +153,5 @@ The application now properly handles device rotation and image orientation:
 3. **EXIF Compatibility:** Some image editing tools may strip EXIF data
 4. **iOS Gallery:** Special handling for saving to iOS gallery is implemented
 5. **PWA Installation:** Proper service worker and manifest files are now included for reliable installation
-6. **Screen Rotation:** Some browsers may require user permission for orientation locking
-7. **Android Gallery:** On Android, images save to Downloads folder which is typically synced with gallery
 
 This project is designed for field observation work where metadata integrity and location accuracy are critical.
