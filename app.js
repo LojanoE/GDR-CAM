@@ -82,8 +82,14 @@ function init() {
         // Lock screen orientation to portrait if available
         lockScreenOrientation();
         
-        // Start camera automatically
-        autoStartCamera();
+        // Ensure DOM is ready and start camera automatically
+        if (document.readyState === 'complete') {
+            autoStartCamera();
+        } else {
+            window.addEventListener('DOMContentLoaded', () => {
+                autoStartCamera();
+            });
+        }
     });
 }
 
@@ -424,6 +430,8 @@ async function startCamera() {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             throw new Error('API de getUserMedia no soportada en este navegador');
         }
+
+        appState.isCameraActive = true; // Set early to prevent multiple concurrent attempts
         
         // First try with rear (environment) camera at highest resolution
         let constraints = { 
@@ -460,22 +468,28 @@ async function startCamera() {
             }
         }
         
-        elements.video.srcObject = appState.stream;
-        const track = appState.stream.getVideoTracks()[0];
-        if (typeof ImageCapture !== 'undefined'){
-            appState.imageCapture = new ImageCapture(track);
+        if (appState.stream) {
+            elements.video.srcObject = appState.stream;
+            const track = appState.stream.getVideoTracks()[0];
+            if (typeof ImageCapture !== 'undefined'){
+                appState.imageCapture = new ImageCapture(track);
+            }
+            
+            // Check if zoom is supported
+            await initializeZoomCapabilities(track);
+            
+            elements.takePhotoBtn.disabled = true; // Disable until location is obtained
+            showStatus('Cámara iniciada. Obteniendo ubicación...', 'success');
+            
+            // Attempt to get location
+            await getCurrentLocation();
+        } else {
+            throw new Error('No se pudo iniciar la cámara');
         }
-        
-        // Check if zoom is supported
-        await initializeZoomCapabilities(track);
-        
-        elements.takePhotoBtn.disabled = true; // Disable until location is obtained
-        showStatus('Cámara iniciada. Obteniendo ubicación...', 'success');
-        
-        // Attempt to get location
-        await getCurrentLocation();
-        appState.isCameraActive = true;
     } catch (err) {
+        // Reset camera state on error
+        appState.isCameraActive = false;
+        
         // Handle different types of errors with appropriate messages
         if (err.name === 'NotAllowedError') {
             showStatus('Permiso denegado para acceder a la cámara. Por favor, habilite los permisos y recargue la página.', 'error');
@@ -491,7 +505,6 @@ async function startCamera() {
             console.error('Error accessing the camera:', err);
             showStatus('Error al acceder a la cámara. Asegúrese de permitir el acceso: ' + err.message, 'error');
         }
-        appState.isCameraActive = false;
     }
 }
 
@@ -551,6 +564,11 @@ function getCurrentLocation() {
                     // Display coordinates with higher precision (7 decimal places for better accuracy)
                     gpsDisplay.value = `${position.coords.latitude.toFixed(7)}, ${position.coords.longitude.toFixed(7)}`;
                     elements.takePhotoBtn.disabled = false; // Enable photo taking
+                    
+                    // Update zoom controls after camera is fully started
+                    setTimeout(() => {
+                        updateZoomControls();
+                    }, 500); // Small delay to ensure everything is ready
                     
                     // Start watching for more precise locations after the initial fix
                     startLocationWatching(gpsDisplay);
@@ -686,11 +704,12 @@ async function takePhoto() {
 
             appState.capturedPhotoDataUrl = imageDataUrl;
 
-            elements.video.srcObject = null;
+            // Stop video tracks properly
             if (appState.stream) {
                 appState.stream.getTracks().forEach(track => track.stop());
                 appState.stream = null;
             }
+            elements.video.srcObject = null;
             elements.cameraSection.classList.add('hidden');
             elements.formSection.classList.remove('hidden');
             elements.takePhotoBtn.disabled = true;
@@ -1317,13 +1336,32 @@ function newCapture() {
     }
 }
 
-// Function to start camera automatically on page load
+// Function to start camera automatically on page load with enhanced stability
 function autoStartCamera() {
     // Only start camera if no active stream
-    if (!appState.stream) {
-        // Call startCamera function directly since we removed the start button
-        startCamera();
+    if (!appState.stream && !appState.isCameraActive) {
+        console.log('Attempting to start camera automatically...');
+        
+        // Use setTimeout to ensure DOM is fully loaded
+        setTimeout(() => {
+            startCamera();
+        }, 100); // Small delay to ensure everything is ready
     }
+}
+
+// Enhanced function to restart camera with better error handling
+function restartCamera() {
+    // Stop any existing stream first
+    if (appState.stream) {
+        appState.stream.getTracks().forEach(track => track.stop());
+        appState.stream = null;
+    }
+    
+    // Reset camera state
+    appState.isCameraActive = false;
+    
+    // Attempt to start camera again
+    startCamera();
 }
 
 // Function to show status messages
