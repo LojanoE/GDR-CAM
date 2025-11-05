@@ -7,7 +7,8 @@ const appState = {
     capturedPhotoDataUrl: null,
     photoWithMetadata: null,
     currentLocation: null,
-    isCameraActive: false
+    isCameraActive: false,
+    rotation: 0
 };
 
 // DOM Elements
@@ -25,6 +26,7 @@ const elements = {
     cameraSection: null,
     statusMessage: null,
     saveWithoutFormBtn: null,  // Added this to track the save without form button
+    rotateCameraBtn: null,
 };
 
 // Initialize the application
@@ -43,6 +45,7 @@ function init() {
     elements.cameraSection = document.getElementById('camera-section');
     elements.statusMessage = document.getElementById('status-message');
     elements.saveWithoutFormBtn = document.getElementById('save-photo-without-form');
+    elements.rotateCameraBtn = document.getElementById('rotate-camera');
     
     // Attach event listeners
     attachEventListeners();
@@ -69,6 +72,7 @@ function init() {
 function attachEventListeners() {
     elements.startCameraBtn.addEventListener('click', startCamera);
     elements.takePhotoBtn.addEventListener('click', takePhoto);
+    elements.rotateCameraBtn.addEventListener('click', rotateCamera);
     elements.saveMetadataBtn.addEventListener('click', handleSaveMetadata);
     
     // Add event listener for saving photo without form (only GPS and timestamp)
@@ -230,6 +234,11 @@ function attachEventListeners() {
     });
 }
 
+function rotateCamera() {
+    appState.rotation = (appState.rotation + 90) % 360;
+    elements.video.style.transform = `rotate(${appState.rotation}deg)`;
+}
+
 // Start camera function
 async function startCamera() {
     try {
@@ -370,26 +379,34 @@ async function takePhoto() {
     const processImage = async (imageSource) => {
         try {
             const canvas = document.createElement('canvas');
-            // Use actual video/source dimensions for maximum quality
-            const width = imageSource.videoWidth || imageSource.width;
-            const height = imageSource.videoHeight || imageSource.height;
-            
-            canvas.width = width;
-            canvas.height = height;
             const context = canvas.getContext('2d');
             
-            // Draw the image with maximum quality
-            context.drawImage(imageSource, 0, 0, width, height);
+            let width = imageSource.videoWidth || imageSource.width;
+            let height = imageSource.videoHeight || imageSource.height;
+
+            if (appState.rotation === 90 || appState.rotation === 270) {
+                canvas.width = height;
+                canvas.height = width;
+            } else {
+                canvas.width = width;
+                canvas.height = height;
+            }
+
+            context.translate(canvas.width / 2, canvas.height / 2);
+            context.rotate(appState.rotation * Math.PI / 180);
             
-            // Capture with maximum quality (98%)
+            if (appState.rotation === 90 || appState.rotation === 270) {
+                 context.drawImage(imageSource, -height / 2, -width / 2, height, width);
+            } else {
+                 context.drawImage(imageSource, -width / 2, -height / 2, width, height);
+            }
+            
             let imageDataUrl = canvas.toDataURL('image/jpeg', 0.98);
 
-            // Correct the image orientation based on EXIF data before storing
             try {
                 imageDataUrl = await correctImageOrientation(imageDataUrl);
             } catch (orientationError) {
                 console.warn('Could not correct image orientation:', orientationError);
-                // If orientation correction fails, use the original image
             }
 
             appState.capturedPhotoDataUrl = imageDataUrl;
@@ -411,11 +428,10 @@ async function takePhoto() {
     };
 
     if (appState.imageCapture) {
-        // Set up options for maximum image quality
         const photoSettings = {
-            imageWidth: 4096,  // Maximum resolution
+            imageWidth: 4096,
             imageHeight: 2160,
-            fillLightMode: 'auto'  // Adjust according to lighting conditions
+            fillLightMode: 'auto'
         };
         
         appState.imageCapture.takePhoto(photoSettings)
@@ -432,8 +448,6 @@ async function takePhoto() {
             })
             .catch(error => {
                 console.error('Error taking photo:', error);
-                console.log('Trying with default settings...');
-                // If it fails with high-resolution settings, try with default
                 appState.imageCapture.takePhoto()
                     .then(blob => {
                         const image = new Image();
@@ -468,38 +482,33 @@ function handleSaveMetadata() {
         return;
     }
     
-    // Create metadata object
     const metadata = {
         workFront,
         coronation,
         activityPerformed,
         observationCategory,
         location: appState.currentLocation,
-        timestamp: new Date().toLocaleString() // Using local time format instead of ISO string
+        timestamp: new Date().toLocaleString()
     };
     
-    // Show loading indicator
     elements.saveMetadataBtn.innerHTML = '<span class="loading"></span> Procesando...';
     elements.saveMetadataBtn.disabled = true;
     
-    // Add metadata to image
     addMetadataToImage(appState.capturedPhotoDataUrl, metadata);
 }
 
 // Function to get the EXIF orientation of the image
 function getImageOrientation(imageDataUrl) {
     return new Promise((resolve) => {
-        // Load the image to check its EXIF data
         const img = new Image();
         img.onload = function() {
-            // Use exif.js to read the orientation
             EXIF.getData(img, function() {
                 const orientation = EXIF.getTag(this, "Orientation");
-                resolve(orientation || 1); // Default to 1 if no orientation found
+                resolve(orientation || 1);
             });
         };
         img.onerror = function() {
-            resolve(1); // Default orientation if image fails to load
+            resolve(1);
         };
         img.src = imageDataUrl;
     });
@@ -514,7 +523,6 @@ function correctImageOrientation(imageDataUrl) {
                 const orientation = EXIF.getTag(this, "Orientation");
                 
                 if (!orientation || orientation === 1) {
-                    // No rotation needed, return original image
                     resolve(imageDataUrl);
                     return;
                 }
@@ -522,67 +530,55 @@ function correctImageOrientation(imageDataUrl) {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 
-                // Set canvas dimensions based on orientation
                 let { width, height } = img;
                 if (orientation >= 5 && orientation <= 8) {
-                    [width, height] = [height, width]; // Swap dimensions for rotated images
+                    [width, height] = [height, width];
                 }
                 
                 canvas.width = width;
                 canvas.height = height;
                 
-                // Apply transformations based on EXIF orientation
                 ctx.save();
                 
                 switch (orientation) {
                     case 2:
-                        // Flip horizontal
                         ctx.translate(width, 0);
                         ctx.scale(-1, 1);
                         break;
                     case 3:
-                        // Rotate 180
                         ctx.translate(width, height);
                         ctx.rotate(Math.PI);
                         break;
                     case 4:
-                        // Flip vertical
                         ctx.translate(0, height);
                         ctx.scale(1, -1);
                         break;
                     case 5:
-                        // Flip along top-left to bottom-right diagonal
                         ctx.rotate(0.5 * Math.PI);
                         ctx.scale(1, -1);
                         break;
                     case 6:
-                        // Rotate 90
                         ctx.rotate(0.5 * Math.PI);
                         ctx.translate(0, -height);
                         break;
                     case 7:
-                        // Flip along top-right to bottom-left diagonal
                         ctx.rotate(0.5 * Math.PI);
                         ctx.translate(width, -height);
                         ctx.scale(-1, 1);
                         break;
                     case 8:
-                        // Rotate -90
                         ctx.rotate(-0.5 * Math.PI);
                         ctx.translate(-width, 0);
                         break;
                     default:
-                        // No rotation needed
                         ctx.restore();
                         resolve(imageDataUrl);
                         return;
                 }
                 
-                // Draw the image on the canvas with correct orientation
                 ctx.drawImage(img, 0, 0, img.width, img.height);
                 ctx.restore();
                 
-                // Convert canvas back to data URL
                 const correctedImage = canvas.toDataURL('image/jpeg', 0.98);
                 resolve(correctedImage);
             });
@@ -604,86 +600,76 @@ function drawTimestampAndLogoOnImage(imageDataUrl, timestamp) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             
-            // Get the actual image orientation from EXIF data
             const imageOrientation = await getImageOrientation(imageDataUrl);
             
-            // Set canvas dimensions based on image orientation
-            if (imageOrientation === 6 || imageOrientation === 8) { // 90° or 270° rotated
+            if (imageOrientation === 6 || imageOrientation === 8) {
                 canvas.width = img.height;
                 canvas.height = img.width;
-            } else { // Normal or 180° rotated
+            } else {
                 canvas.width = img.width;
                 canvas.height = img.height;
             }
 
-            // Apply transformations based on EXIF orientation
             ctx.save();
             
             switch (imageOrientation) {
-                case 2: // Horizontal flip
+                case 2:
                     ctx.translate(canvas.width, 0);
                     ctx.scale(-1, 1);
                     break;
-                case 3: // 180° rotate left
+                case 3:
                     ctx.translate(canvas.width, canvas.height);
                     ctx.rotate(Math.PI);
                     break;
-                case 4: // Vertical flip
+                case 4:
                     ctx.translate(0, canvas.height);
                     ctx.scale(1, -1);
                     break;
-                case 5: // Vertical flip + 90 rotate right
+                case 5:
                     ctx.rotate(0.5 * Math.PI);
                     ctx.scale(1, -1);
                     break;
-                case 6: // 90° rotate right
+                case 6:
                     ctx.rotate(0.5 * Math.PI);
                     ctx.translate(0, -canvas.width);
                     break;
-                case 7: // Horizontal flip + 90 rotate right
+                case 7:
                     ctx.rotate(0.5 * Math.PI);
                     ctx.translate(canvas.height, -canvas.width);
                     ctx.scale(-1, 1);
                     break;
-                case 8: // 90° rotate left
+                case 8:
                     ctx.rotate(-0.5 * Math.PI);
                     ctx.translate(-canvas.height, 0);
                     break;
             }
 
-            // Draw the image
             ctx.drawImage(img, 0, 0);
 
-            // Restore the context to its unrotated state before adding text/logo
             ctx.restore();
 
-            // Calculate dimensions for logo and text based on the original canvas dimensions
             let canvasWidth, canvasHeight;
-            if (imageOrientation === 6 || imageOrientation === 8) { // 90° or 270° rotated
+            if (imageOrientation === 6 || imageOrientation === 8) {
                 canvasWidth = img.height;
                 canvasHeight = img.width;
-            } else { // Normal or 180° rotated
+            } else {
                 canvasWidth = img.width;
                 canvasHeight = img.height;
             }
 
-            // Draw the logo and timestamp with positions that respect the canvas orientation
             const logo = new Image();
             logo.onload = function() {
-                const logoHeight = Math.min(320, canvasHeight * 0.15); // Make logo proportional to image
+                const logoHeight = Math.min(320, canvasHeight * 0.15);
                 const logoAspectRatio = logo.width / logo.height;
                 const logoWidth = logoHeight * logoAspectRatio;
-                const logoPadding = Math.min(25, canvasWidth * 0.02, canvasHeight * 0.02); // Make padding proportional to image
+                const logoPadding = Math.min(25, canvasWidth * 0.02, canvasHeight * 0.02);
 
-                // Calculate positions accounting for the actual canvas dimensions
                 const logoX = logoPadding;
                 const logoY = canvasHeight - logoHeight - logoPadding;
                 
-                // Draw logo on the original canvas context (after restoring transformations)
                 ctx.drawImage(logo, logoX, logoY, logoWidth, logoHeight);
 
-                // Prepare to draw timestamp text
-                const fontSize = Math.min(80, Math.max(20, Math.floor(canvasHeight * 0.04))); // Scale font with image size
+                const fontSize = Math.min(80, Math.max(20, Math.floor(canvasHeight * 0.04)));
                 ctx.font = `${fontSize}px Arial`;
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
                 ctx.textAlign = 'right';
@@ -697,8 +683,7 @@ function drawTimestampAndLogoOnImage(imageDataUrl, timestamp) {
             };
             
             logo.onerror = function() {
-                // If the logo fails to load, still draw the timestamp
-                const fontSize = Math.min(80, Math.max(20, Math.floor(canvasHeight * 0.04))); // Scale font with image size
+                const fontSize = Math.min(80, Math.max(20, Math.floor(canvasHeight * 0.04)));
                 ctx.font = `${fontSize}px Arial`;
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
                 ctx.textAlign = 'right';
@@ -728,7 +713,6 @@ async function addMetadataToImage(imageDataUrl, metadata) {
     console.log("imageDataUrl (first 100 characters):", imageDataUrl.slice(0, 100));
     
     try {
-        // Add the date and time as text on the image
         const timestampedImage = await drawTimestampAndLogoOnImage(imageDataUrl, metadata.timestamp);
         
         if (typeof piexif !== 'undefined' && piexif.dump) {
@@ -744,23 +728,17 @@ async function addMetadataToImage(imageDataUrl, metadata) {
 
                 console.log("Metadata to add:", metadata);
                 
-                // Only add UserComment if there's form data
                 if (metadata.workFront || metadata.coronation || metadata.activityPerformed || metadata.observationCategory) {
-                    // Handle the encoding of the user comment
                     let userComment;
                     if (piexif.helper && piexif.helper.encodeToUnicode) {
                         try {
                             userComment = piexif.helper.encodeToUnicode(JSON.stringify(metadata));
                         } catch (encodingError) {
                             console.warn("Unicode encoding failed, using fallback:", encodingError);
-                            // Fallback: try to use the simpler ASCII encoding
                             userComment = "ASCII\0" + JSON.stringify(metadata);
                         }
                     } else {
-                        // Fallback: try to use the simpler ASCII encoding
-                        // First, ensure metadata is properly stringified and encode safely
                         const metadataStr = JSON.stringify(metadata);
-                        // Convert the string to a format that piexif can handle
                         userComment = "ASCII\0" + metadataStr;
                     }
                     
@@ -775,7 +753,6 @@ async function addMetadataToImage(imageDataUrl, metadata) {
                     const lat = metadata.location.latitude;
                     const lng = metadata.location.longitude;
                     
-                    // Validate coordinates
                     if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
                         throw new Error("Coordenadas GPS inválidas");
                     }
@@ -785,8 +762,6 @@ async function addMetadataToImage(imageDataUrl, metadata) {
                     const absLat = Math.abs(lat);
                     const absLng = Math.abs(lng);
                     
-                    // Improve precision by using higher precision rational values
-                    // Calculate degrees, minutes, and seconds with higher precision
                     const latDeg = Math.floor(absLat);
                     const latMinDecimal = (absLat - latDeg) * 60;
                     const latMin = Math.floor(latMinDecimal);
@@ -803,13 +778,13 @@ async function addMetadataToImage(imageDataUrl, metadata) {
                         [piexif.GPSIFD.GPSLatitude]: [
                             [latDeg, 1], 
                             [latMin, 1], 
-                            [Math.round(latSec * 10000), 10000]  // Increased precision to 4 decimal places
+                            [Math.round(latSec * 10000), 10000]
                         ],
                         [piexif.GPSIFD.GPSLongitudeRef]: lngRef,
                         [piexif.GPSIFD.GPSLongitude]: [
                             [lngDeg, 1], 
                             [lngMin, 1], 
-                            [Math.round(lngSec * 10000), 10000]  // Increased precision to 4 decimal places
+                            [Math.round(lngSec * 10000), 10000]
                         ]
                     };
 
@@ -817,7 +792,7 @@ async function addMetadataToImage(imageDataUrl, metadata) {
                         const alt = Math.abs(metadata.location.altitude);
                         const altRef = metadata.location.altitude >= 0 ? 0 : 1;
                         exifObj["GPS"][piexif.GPSIFD.GPSAltitudeRef] = altRef;
-                        exifObj["GPS"][piexif.GPSIFD.GPSAltitude] = [Math.round(alt * 10000), 10000]; // Increased precision
+                        exifObj["GPS"][piexif.GPSIFD.GPSAltitude] = [Math.round(alt * 10000), 10000];
                     }
                     console.log("GPS data added:", exifObj["GPS"]);
                 }
@@ -832,8 +807,6 @@ async function addMetadataToImage(imageDataUrl, metadata) {
                 exifObj["Exif"][piexif.ExifIFD.DateTimeOriginal] = dateTimeOriginal;
                 exifObj["0th"][piexif.ImageIFD.DateTime] = dateTimeOriginal;
                 
-                // Don't add orientation tag since we already applied rotation to canvas
-                // exifObj["0th"][piexif.ImageIFD.Orientation] = 1; // Consider image as normal orientation
                 console.log("Final EXIF object before 'dump':", JSON.parse(JSON.stringify(exifObj)));
 
                 const exifBytes = piexif.dump(exifObj);
@@ -845,13 +818,10 @@ async function addMetadataToImage(imageDataUrl, metadata) {
                 appState.photoWithMetadata = newImage;
                 elements.photoPreview.src = newImage;
                 
-                // If the preview image is not correctly oriented for display, we may need to correct it specifically for the preview
-                // The image should already be corrected by drawTimestampAndLogoOnImage, but let's ensure preview shows correctly
                 elements.formSection.classList.add('hidden');
                 elements.resultSection.classList.remove('hidden');
                 showStatus('¡Foto guardada con metadatos!', 'success');
                 
-                // Reset both buttons if they exist
                 if (elements.saveMetadataBtn) {
                     elements.saveMetadataBtn.innerHTML = 'Guardar Foto con Metadatos';
                     elements.saveMetadataBtn.disabled = false;
@@ -861,14 +831,12 @@ async function addMetadataToImage(imageDataUrl, metadata) {
                     elements.saveWithoutFormBtn.disabled = false;
                 }
                 
-                // Automatically save to gallery
                 saveToGallery(newImage);
 
             } catch (err) {
                 console.error('Error in addMetadataToImage:', err);
                 showStatus('Error al guardar los metadatos: ' + err.message, 'error');
                 
-                // Reset both buttons if they exist
                 if (elements.saveMetadataBtn) {
                     elements.saveMetadataBtn.innerHTML = 'Guardar Foto con Metadatos';
                     elements.saveMetadataBtn.disabled = false;
@@ -886,7 +854,6 @@ async function addMetadataToImage(imageDataUrl, metadata) {
         console.error('Error drawing timestamp on image:', error);
         showStatus('Error al procesar la imagen: ' + error.message, 'error');
         
-        // Reset both buttons if they exist
         if (elements.saveMetadataBtn) {
             elements.saveMetadataBtn.innerHTML = 'Guardar Foto con Metadatos';
             elements.saveMetadataBtn.disabled = false;
@@ -905,14 +872,12 @@ function newCapture() {
     elements.startCameraBtn.disabled = false;
     elements.takePhotoBtn.disabled = true;
     
-    // Clear form fields
     document.getElementById('work-front').value = '';
     document.getElementById('coronation').value = '';
     document.getElementById('observation-category').value = '';
     document.getElementById('activity-performed').value = '';
     document.getElementById('gps-coords').value = '';
     
-    // Restore download button text if it was changed
     if (elements.downloadPhotoBtn.innerHTML.includes('Guardando...') || 
         elements.downloadPhotoBtn.innerHTML.includes('Guardando en galería') || 
         elements.downloadPhotoBtn.innerHTML.includes('Descargando...')) {
@@ -920,7 +885,6 @@ function newCapture() {
         elements.downloadPhotoBtn.disabled = false;
     }
     
-    // Start camera automatically when returning to camera view
     if (!appState.isCameraActive) {
         startCamera();
     }
@@ -928,9 +892,7 @@ function newCapture() {
 
 // Function to start camera automatically on page load
 function autoStartCamera() {
-    // Only start camera if no active stream
     if (!appState.stream) {
-        // Simulate click on start camera button
         elements.startCameraBtn.click();
     }
 }
@@ -1000,10 +962,6 @@ async function saveToGallery(imageUrl) {
 
     } finally {
 
-        // Always reset the button state, as both paths either complete or call another function
-
-        // that will handle the button state.
-
         if (elements.downloadPhotoBtn.innerHTML.includes('Guardando...')) {
 
             elements.downloadPhotoBtn.innerHTML = 'Guardar en Galería';
@@ -1047,8 +1005,6 @@ function saveUsingDownloadAPI(imageUrl) {
         showStatus('Error al guardar la imagen.', 'error');
 
     } finally {
-
-        // Ensure the button is reset even if the download fails
 
         if (elements.downloadPhotoBtn.innerHTML.includes('Guardando...')) {
 
