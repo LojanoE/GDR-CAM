@@ -383,23 +383,29 @@ async function startCamera() {
     }
 }
 
-// Attempt to get current location
+// Attempt to get current location with enhanced precision
 function getCurrentLocation() {
     return new Promise((resolve, reject) => {
         const gpsDisplay = document.getElementById('gps-coords');
         if (navigator.geolocation) {
+            // Use more optimistic timeout settings to allow for more accurate GPS fix
             navigator.geolocation.getCurrentPosition(
                 (position) => {
+                    // Store all available GPS data for higher precision
                     appState.currentLocation = {
                         latitude: position.coords.latitude,
                         longitude: position.coords.longitude,
-                        accuracy: position.coords.accuracy,
-                        altitude: position.coords.altitude,
-                        timestamp: position.timestamp
+                        accuracy: position.coords.accuracy,                    // Accuracy in meters
+                        altitude: position.coords.altitude,                    // Altitude in meters
+                        altitudeAccuracy: position.coords.altitudeAccuracy,    // Altitude accuracy in meters
+                        heading: position.coords.heading,                      // Heading in degrees
+                        speed: position.coords.speed,                          // Speed in meters/second
+                        timestamp: position.timestamp                          // Timestamp of location fix
                     };
                     console.log('Location obtained:', appState.currentLocation);
-                    showStatus('Ubicación obtenida. Puede tomar una foto.', 'success');
-                    gpsDisplay.value = `${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`;
+                    showStatus(`Ubicación obtenida. Precisión: ±${Math.round(appState.currentLocation.accuracy)}m. Puede tomar una foto.`, 'success');
+                    // Display coordinates with higher precision (7 decimal places for better accuracy)
+                    gpsDisplay.value = `${position.coords.latitude.toFixed(7)}, ${position.coords.longitude.toFixed(7)}`;
                     elements.takePhotoBtn.disabled = false; // Enable photo taking
                     resolve(position);
                 },
@@ -427,9 +433,9 @@ function getCurrentLocation() {
                     resolve(null); // Still resolve the promise to continue app flow
                 },
                 {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 60000
+                    enableHighAccuracy: true,  // Enable GPS for highest accuracy
+                    timeout: 20000,            // Longer timeout to allow for better GPS fix
+                    maximumAge: 300000         // Accept cached location up to 5 minutes old
                 }
             );
         } else {
@@ -807,7 +813,7 @@ async function addMetadataToImage(imageDataUrl, metadata) {
                 }
 
                 if (metadata.location) {
-                    console.log("Adding GPS data...");
+                    console.log("Adding GPS data with enhanced precision...");
                     const lat = metadata.location.latitude;
                     const lng = metadata.location.longitude;
                     
@@ -820,9 +826,9 @@ async function addMetadataToImage(imageDataUrl, metadata) {
                     const lngRef = lng >= 0 ? "E" : "W";
                     const absLat = Math.abs(lat);
                     const absLng = Math.abs(lng);
-                    
-                    // Improve precision by using higher precision rational values
-                    // Calculate degrees, minutes, and seconds with higher precision
+
+                    // Calculate degrees, minutes, and seconds with maximum precision
+                    // For higher precision GPS, we'll use a better rational approximation
                     const latDeg = Math.floor(absLat);
                     const latMinDecimal = (absLat - latDeg) * 60;
                     const latMin = Math.floor(latMinDecimal);
@@ -837,25 +843,81 @@ async function addMetadataToImage(imageDataUrl, metadata) {
                         [piexif.GPSIFD.GPSVersionID]: [2, 2, 0, 0],
                         [piexif.GPSIFD.GPSLatitudeRef]: latRef,
                         [piexif.GPSIFD.GPSLatitude]: [
-                            [latDeg, 1], 
-                            [latMin, 1], 
-                            [Math.round(latSec * 10000), 10000]  // Increased precision to 4 decimal places
+                            [Math.round(latDeg), 1], 
+                            [Math.round(latMin), 1], 
+                            [Math.round(latSec * 1000000), 1000000]  // Increased precision to 6 decimal places
                         ],
                         [piexif.GPSIFD.GPSLongitudeRef]: lngRef,
                         [piexif.GPSIFD.GPSLongitude]: [
-                            [lngDeg, 1], 
-                            [lngMin, 1], 
-                            [Math.round(lngSec * 10000), 10000]  // Increased precision to 4 decimal places
+                            [Math.round(lngDeg), 1], 
+                            [Math.round(lngMin), 1], 
+                            [Math.round(lngSec * 1000000), 1000000]  // Increased precision to 6 decimal places
                         ]
                     };
 
+                    // Add altitude if available
                     if (metadata.location.altitude !== null && metadata.location.altitude !== undefined) {
                         const alt = Math.abs(metadata.location.altitude);
                         const altRef = metadata.location.altitude >= 0 ? 0 : 1;
                         exifObj["GPS"][piexif.GPSIFD.GPSAltitudeRef] = altRef;
-                        exifObj["GPS"][piexif.GPSIFD.GPSAltitude] = [Math.round(alt * 10000), 10000]; // Increased precision
+                        // Use higher precision for altitude (up to 6 decimal places)
+                        exifObj["GPS"][piexif.GPSIFD.GPSAltitude] = [Math.round(alt * 1000000), 1000000];
                     }
-                    console.log("GPS data added:", exifObj["GPS"]);
+
+                    // Add GPS accuracy (DOP - Dilution of Precision)
+                    if (metadata.location.accuracy !== undefined) {
+                        // Convert accuracy in meters to GPS DOP (Dilution of Precision)
+                        // This is a simplified conversion; for more accurate conversion, more complex algorithms are needed
+                        const accuracy = metadata.location.accuracy;
+                        // Use the accuracy value directly to represent precision (lower is better)
+                        exifObj["GPS"][piexif.GPSIFD.GPSDOP] = [Math.round(accuracy * 100), 100]; // Higher precision
+                    }
+
+                    // Add date and time stamp if available
+                    if (metadata.location.timestamp) {
+                        const date = new Date(metadata.location.timestamp);
+                        // Format for GPS date stamp (YYYY:MM:DD)
+                        const gpsDate = date.getFullYear() + ":" + 
+                            String(date.getMonth() + 1).padStart(2, '0') + ":" + 
+                            String(date.getDate()).padStart(2, '0');
+                        
+                        exifObj["GPS"][piexif.GPSIFD.GPSDateStamp] = gpsDate;
+                        
+                        // Add GPS time stamp (HH:MM:SS)
+                        const gpsTime = String(date.getHours()).padStart(2, '0') + ":" + 
+                            String(date.getMinutes()).padStart(2, '0') + ":" + 
+                            String(date.getSeconds()).padStart(2, '0');
+                        
+                        // GPS time should be in atomic clock reference
+                        exifObj["GPS"][piexif.GPSIFD.GPSTimeStamp] = [
+                            [date.getHours(), 1],
+                            [date.getMinutes(), 1],
+                            [date.getSeconds(), 1]
+                        ];
+                    }
+
+                    // Add altitude accuracy if available
+                    if (metadata.location.altitudeAccuracy !== null && metadata.location.altitudeAccuracy !== undefined) {
+                        exifObj["GPS"][piexif.GPSIFD.GPSHPositioningError] = [Math.round(metadata.location.altitudeAccuracy * 1000000), 1000000]; // Horizontal positioning error
+                    }
+
+                    // Add heading if available (direction of travel)
+                    if (metadata.location.heading !== null && metadata.location.heading !== undefined) {
+                        if (metadata.location.heading >= 0 && metadata.location.heading <= 360) {
+                            exifObj["GPS"][piexif.GPSIFD.GPSImgDirectionRef] = "T"; // True direction
+                            exifObj["GPS"][piexif.GPSIFD.GPSImgDirection] = [Math.round(metadata.location.heading * 1000000), 1000000]; // Heading in degrees
+                        }
+                    }
+
+                    // Add speed if available
+                    if (metadata.location.speed !== null && metadata.location.speed !== undefined) {
+                        exifObj["GPS"][piexif.GPSIFD.GPSSpeedRef] = "K"; // km/h
+                        // Convert m/s to km/h: m/s * 3.6 = km/h
+                        const speedKmh = metadata.location.speed * 3.6;
+                        exifObj["GPS"][piexif.GPSIFD.GPSSpeed] = [Math.round(speedKmh * 1000000), 1000000];
+                    }
+
+                    console.log("Enhanced GPS data added:", exifObj["GPS"]);
                 }
 
                 const now = new Date();
@@ -1171,9 +1233,18 @@ async function addTimestampAndLogoToImage(imageUrl) {
                     latRef = exifObj.GPS[piexif.GPSIFD.GPSLatitudeRef];
                     lngRef = exifObj.GPS[piexif.GPSIFD.GPSLongitudeRef];
                     
-                    // Format GPS coordinates if available
+                    // Format GPS coordinates if available with higher precision
                     if (lat !== null && lng !== null && latRef && lngRef) {
-                        gpsInfo = `N ${Math.abs(lat).toFixed(4)}° ${latRef}, ${Math.abs(lng).toFixed(4)}° ${lngRef}`;
+                        gpsInfo = `N ${Math.abs(lat).toFixed(6)}° ${latRef}, ${Math.abs(lng).toFixed(6)}° ${lngRef}`;
+                        
+                        // If accuracy is available, add it to the display
+                        if (exifObj.GPS[piexif.GPSIFD.GPSDOP]) {
+                            const dop = exifObj.GPS[piexif.GPSIFD.GPSDOP];
+                            if (Array.isArray(dop) && dop[1] !== 0) {
+                                const accuracy = (dop[0] / dop[1]).toFixed(1);
+                                gpsInfo += ` (±${accuracy}m)`;
+                            }
+                        }
                     }
                 }
                 
@@ -1258,9 +1329,18 @@ async function addTimestampAndLogoToImage(imageUrl) {
                     latRef = exifObj.GPS[piexif.GPSIFD.GPSLatitudeRef];
                     lngRef = exifObj.GPS[piexif.GPSIFD.GPSLongitudeRef];
                     
-                    // Format GPS coordinates if available
+                    // Format GPS coordinates if available with higher precision
                     if (lat !== null && lng !== null && latRef && lngRef) {
-                        gpsInfo = `N ${Math.abs(lat).toFixed(4)}° ${latRef}, ${Math.abs(lng).toFixed(4)}° ${lngRef}`;
+                        gpsInfo = `N ${Math.abs(lat).toFixed(6)}° ${latRef}, ${Math.abs(lng).toFixed(6)}° ${lngRef}`;
+                        
+                        // If accuracy is available, add it to the display
+                        if (exifObj.GPS[piexif.GPSIFD.GPSDOP]) {
+                            const dop = exifObj.GPS[piexif.GPSIFD.GPSDOP];
+                            if (Array.isArray(dop) && dop[1] !== 0) {
+                                const accuracy = (dop[0] / dop[1]).toFixed(1);
+                                gpsInfo += ` (±${accuracy}m)`;
+                            }
+                        }
                     }
                 }
                 
@@ -1408,9 +1488,18 @@ async function applyRotationToImage(imageUrl, rotationAngle) {
                     latRef = exifObj.GPS[piexif.GPSIFD.GPSLatitudeRef];
                     lngRef = exifObj.GPS[piexif.GPSIFD.GPSLongitudeRef];
                     
-                    // Format GPS coordinates if available
+                    // Format GPS coordinates if available with higher precision
                     if (lat !== null && lng !== null && latRef && lngRef) {
-                        gpsInfo = `N ${Math.abs(lat).toFixed(4)}° ${latRef}, ${Math.abs(lng).toFixed(4)}° ${lngRef}`;
+                        gpsInfo = `N ${Math.abs(lat).toFixed(6)}° ${latRef}, ${Math.abs(lng).toFixed(6)}° ${lngRef}`;
+                        
+                        // If accuracy is available, add it to the display
+                        if (exifObj.GPS[piexif.GPSIFD.GPSDOP]) {
+                            const dop = exifObj.GPS[piexif.GPSIFD.GPSDOP];
+                            if (Array.isArray(dop) && dop[1] !== 0) {
+                                const accuracy = (dop[0] / dop[1]).toFixed(1);
+                                gpsInfo += ` (±${accuracy}m)`;
+                            }
+                        }
                     }
                 }
                 
@@ -1495,9 +1584,18 @@ async function applyRotationToImage(imageUrl, rotationAngle) {
                     latRef = exifObj.GPS[piexif.GPSIFD.GPSLatitudeRef];
                     lngRef = exifObj.GPS[piexif.GPSIFD.GPSLongitudeRef];
                     
-                    // Format GPS coordinates if available
+                    // Format GPS coordinates if available with higher precision
                     if (lat !== null && lng !== null && latRef && lngRef) {
-                        gpsInfo = `N ${Math.abs(lat).toFixed(4)}° ${latRef}, ${Math.abs(lng).toFixed(4)}° ${lngRef}`;
+                        gpsInfo = `N ${Math.abs(lat).toFixed(6)}° ${latRef}, ${Math.abs(lng).toFixed(6)}° ${lngRef}`;
+                        
+                        // If accuracy is available, add it to the display
+                        if (exifObj.GPS[piexif.GPSIFD.GPSDOP]) {
+                            const dop = exifObj.GPS[piexif.GPSIFD.GPSDOP];
+                            if (Array.isArray(dop) && dop[1] !== 0) {
+                                const accuracy = (dop[0] / dop[1]).toFixed(1);
+                                gpsInfo += ` (±${accuracy}m)`;
+                            }
+                        }
                     }
                 }
                 
