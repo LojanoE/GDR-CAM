@@ -50,6 +50,14 @@ function init() {
     // Attach event listeners
     attachEventListeners();
     
+    // Handle screen orientation
+    if (screen.orientation) {
+        screen.orientation.addEventListener('change', handleOrientationChange);
+        handleOrientationChange(); // Initial check
+    } else {
+        window.addEventListener('orientationchange', handleOrientationChange);
+    }
+
     // Initialize camera automatically on page load
     window.addEventListener('load', () => {
         // Verify service worker support and register
@@ -72,7 +80,11 @@ function init() {
 function attachEventListeners() {
     elements.startCameraBtn.addEventListener('click', startCamera);
     elements.takePhotoBtn.addEventListener('click', takePhoto);
-    elements.rotateCameraBtn.addEventListener('click', rotateCamera);
+    elements.rotateCameraBtn.addEventListener('click', () => {
+        // Manual rotation
+        appState.rotation = (appState.rotation + 90) % 360;
+        applyRotation();
+    });
     elements.saveMetadataBtn.addEventListener('click', handleSaveMetadata);
     
     // Add event listener for saving photo without form (only GPS and timestamp)
@@ -125,11 +137,9 @@ function attachEventListeners() {
                         if (piexif.helper && piexif.helper.decodeFromUnicode) {
                             userComment = piexif.helper.decodeFromUnicode(exifObj.Exif[piexif.ExifIFD.UserComment]);
                         } else {
-                            // Fallback: if the decodeFromUnicode method is not available,
-                            // try to extract the string manually (assuming ASCII\0 prefix was used)
                             const comment = exifObj.Exif[piexif.ExifIFD.UserComment];
                             if (comment.startsWith('ASCII\0')) {
-                                userComment = comment.substring(6); // Remove 'ASCII\0' prefix
+                                userComment = comment.substring(6);
                             } else {
                                 userComment = comment;
                             }
@@ -150,19 +160,15 @@ function attachEventListeners() {
                 // Display GPS data
                 if (exifObj.GPS && Object.keys(exifObj.GPS).length > 0) {
                     metadataText += 'Datos GPS:\n';
-                    
-                    // Get GPS coordinates
                     let lat = null, lng = null;
                     let latRef = null, lngRef = null;
                     
                     for (const tag in exifObj.GPS) {
                         const tagName = piexif.GPSIFD[tag] || `Unknown Tag (${tag})`;
                         
-                        // Process GPS coordinates
                         if (tag == piexif.GPSIFD.GPSLatitude) {
                             const gpsLat = exifObj.GPS[tag];
                             if (Array.isArray(gpsLat) && gpsLat.length === 3) {
-                                // Calculate decimal degrees from DMS
                                 const deg = gpsLat[0][0] / gpsLat[0][1];
                                 const min = gpsLat[1][0] / gpsLat[1][1];
                                 const sec = gpsLat[2][0] / gpsLat[2][1];
@@ -172,7 +178,6 @@ function attachEventListeners() {
                         } else if (tag == piexif.GPSIFD.GPSLongitude) {
                             const gpsLng = exifObj.GPS[tag];
                             if (Array.isArray(gpsLng) && gpsLng.length === 3) {
-                                // Calculate decimal degrees from DMS
                                 const deg = gpsLng[0][0] / gpsLng[0][1];
                                 const min = gpsLng[1][0] / gpsLng[1][1];
                                 const sec = gpsLng[2][0] / gpsLng[2][1];
@@ -186,12 +191,10 @@ function attachEventListeners() {
                             lngRef = exifObj.GPS[tag];
                             metadataText += `${tagName}: ${exifObj.GPS[tag]}\n`;
                         } else {
-                            // For other GPS tags, just display as is
                             metadataText += `${tagName}: ${exifObj.GPS[tag]}\n`;
                         }
                     }
                     
-                    // Display calculated coordinates if available
                     if (lat !== null && lng !== null && latRef && lngRef) {
                         const latSign = latRef === 'S' ? -1 : 1;
                         const lngSign = lngRef === 'W' ? -1 : 1;
@@ -205,7 +208,6 @@ function attachEventListeners() {
                     metadataText += 'No se encontraron datos GPS en los metadatos.\n';
                 }
                 
-                // Display DateTime
                 if (exifObj.Exif && exifObj.Exif[piexif.ExifIFD.DateTimeOriginal]) {
                     metadataText += `\nFecha y Hora Original: ${exifObj.Exif[piexif.ExifIFD.DateTimeOriginal]}\n`;
                 } else if (exifObj['0th'] && exifObj['0th'][piexif.ImageIFD.DateTime]) {
@@ -234,13 +236,21 @@ function attachEventListeners() {
     });
 }
 
-function rotateCamera() {
-    appState.rotation = (appState.rotation + 90) % 360;
+function handleOrientationChange() {
+    const orientation = screen.orientation.type;
+    if (orientation.startsWith('portrait')) {
+        appState.rotation = 0;
+    } else if (orientation.startsWith('landscape')) {
+        appState.rotation = 90;
+    }
+    applyRotation();
+}
+
+function applyRotation() {
     const video = elements.video;
     video.style.transform = `rotate(${appState.rotation}deg)`;
 
     if (appState.rotation === 90 || appState.rotation === 270) {
-        const videoAspectRatio = video.videoWidth / video.videoHeight;
         const scale = video.parentElement.offsetWidth / video.videoHeight;
         video.style.transform = `rotate(${appState.rotation}deg) scale(${scale})`;
     } else {
@@ -251,16 +261,14 @@ function rotateCamera() {
 // Start camera function
 async function startCamera() {
     try {
-        // Check if camera access is supported
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             throw new Error('API de getUserMedia no soportada en este navegador');
         }
         
-        // First try with rear (environment) camera at highest resolution
         const constraints = { 
             video: { 
                 facingMode: 'environment',
-                width: { ideal: 4096 },  // Maximum resolution available
+                width: { ideal: 4096 },
                 height: { ideal: 2160 },
                 aspectRatio: { ideal: 16/9 }
             } 
@@ -270,7 +278,6 @@ async function startCamera() {
             appState.stream = await navigator.mediaDevices.getUserMedia(constraints);
         } catch (environmentError) {
             console.warn('Could not access rear camera at maximum resolution, trying with default resolution:', environmentError);
-            // If it fails, try with rear camera at default resolution
             try {
                 const constraintsFallback = { 
                     video: { facingMode: 'environment' } 
@@ -278,11 +285,10 @@ async function startCamera() {
                 appState.stream = await navigator.mediaDevices.getUserMedia(constraintsFallback);
             } catch (fallbackError) {
                 console.warn('Could not access rear camera, trying with front camera:', fallbackError);
-                // If it fails, try with front camera
                 const constraintsAlt = { 
                     video: { 
                         facingMode: 'user',
-                        width: { ideal: 4096 },  // Maximum resolution available
+                        width: { ideal: 4096 },
                         height: { ideal: 2160 },
                         aspectRatio: { ideal: 16/9 }
                     } 
@@ -297,15 +303,13 @@ async function startCamera() {
             appState.imageCapture = new ImageCapture(track);
         }
         
-        elements.takePhotoBtn.disabled = true; // Disable until location is obtained
+        elements.takePhotoBtn.disabled = true;
         elements.startCameraBtn.disabled = true;
         showStatus('Cámara iniciada. Obteniendo ubicación...', 'success');
         
-        // Attempt to get location
         await getCurrentLocation();
         appState.isCameraActive = true;
     } catch (err) {
-        // Handle different types of errors with appropriate messages
         if (err.name === 'NotAllowedError') {
             showStatus('Permiso denegado para acceder a la cámara. Por favor, habilite los permisos y recargue la página.', 'error');
         } else if (err.name === 'NotFoundError') {
@@ -341,7 +345,7 @@ function getCurrentLocation() {
                     console.log('Location obtained:', appState.currentLocation);
                     showStatus('Ubicación obtenida. Puede tomar una foto.', 'success');
                     gpsDisplay.value = `${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}`;
-                    elements.takePhotoBtn.disabled = false; // Enable photo taking
+                    elements.takePhotoBtn.disabled = false;
                     resolve(position);
                 },
                 (error) => {
@@ -364,8 +368,8 @@ function getCurrentLocation() {
                     console.warn('Could not obtain location:', error.message);
                     showStatus(errorMessage + ' Puede tomar la foto sin datos de GPS.', 'error');
                     gpsDisplay.value = 'No se pudo obtener la ubicación.';
-                    elements.takePhotoBtn.disabled = false; // Enable photo taking anyway
-                    resolve(null); // Still resolve the promise to continue app flow
+                    elements.takePhotoBtn.disabled = false;
+                    resolve(null);
                 },
                 {
                     enableHighAccuracy: true,
@@ -377,8 +381,8 @@ function getCurrentLocation() {
             console.warn('Geolocation not supported');
             showStatus('La geolocalización no es compatible con este navegador', 'error');
             gpsDisplay.value = 'Geolocalización no soportada.';
-            elements.takePhotoBtn.disabled = false; // Enable photo taking anyway
-            resolve(null); // Resolve the promise since geolocation isn't supported
+            elements.takePhotoBtn.disabled = false;
+            resolve(null);
         }
     });
 }
