@@ -241,7 +241,6 @@ function zoomOut() {
 
 // Attach all event listeners
 function attachEventListeners() {
-    elements.startCameraBtn.addEventListener('click', startCamera);
     elements.takePhotoBtn.addEventListener('click', takePhoto);
     elements.zoomInBtn.addEventListener('click', zoomIn);
     elements.zoomOutBtn.addEventListener('click', zoomOut);
@@ -472,7 +471,6 @@ async function startCamera() {
         await initializeZoomCapabilities(track);
         
         elements.takePhotoBtn.disabled = true; // Disable until location is obtained
-        elements.startCameraBtn.disabled = true;
         showStatus('Cámara iniciada. Obteniendo ubicación...', 'success');
         
         // Attempt to get location
@@ -697,7 +695,6 @@ async function takePhoto() {
             elements.cameraSection.classList.add('hidden');
             elements.formSection.classList.remove('hidden');
             elements.takePhotoBtn.disabled = true;
-            elements.startCameraBtn.disabled = false;
             appState.isCameraActive = false;
             
             // Update the GPS display with the best location found so far
@@ -1287,7 +1284,6 @@ async function rotateImage(angle) {
 function newCapture() {
     elements.resultSection.classList.add('hidden');
     elements.cameraSection.classList.remove('hidden');
-    elements.startCameraBtn.disabled = false;
     elements.takePhotoBtn.disabled = true;
     
     // Clear form fields
