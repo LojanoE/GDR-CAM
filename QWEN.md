@@ -1,168 +1,141 @@
 # GDR-CAM Project Context
 
 ## Project Overview
+GDR-CAM is a Progressive Web Application (PWA) designed for capturing photos with embedded metadata. The application allows users to take photos using their device's camera, fill out an observation form, and store all data as metadata within the photo. Key features include:
 
-GDR-CAM is a Progressive Web App (PWA) for capturing photos with embedded metadata. The application allows users to take photos and fill out observation forms that get stored as EXIF metadata in the image file. It features offline capabilities, GPS location integration, form data embedding, and an intuitive mobile-friendly interface.
-
-### Key Features
-- Camera access using getUserMedia API with automatic selection of rear camera
-- Form data capture (work front, coronation, observation category, activities performed)
-- GPS location embedding in image EXIF data
-- Image rotation and preview functionality
-- Offline PWA with service worker caching
-- Metadata viewing and validation
-- Photo gallery saving capabilities
-- Timestamp and logo overlay on saved images
-
-### Technologies Used
-- HTML5, CSS3, JavaScript
-- getUserMedia API for camera access
-- EXIF.js and piexif.js for metadata handling
-- Service Workers for offline functionality
-- Web App Manifest for PWA installation
-- File System Access API for gallery saving
-- Canvas API for image processing and rotation
+- Photo capture with metadata embedding (EXIF data)
+- Form for recording work details (work front, coronation, observation type, activity performed)
+- GPS coordinates integration
+- Offline functionality through service workers
+- Responsive design for mobile, tablet, and desktop
+- Gallery saving capability (with special iOS support)
 
 ## Project Structure
-
 ```
 GDR-CAM/
-├── app.js              # Main application logic
-├── index.html          # Main HTML structure
-├── style.css           # Styling and responsive design
-├── sw.js               # Service worker for offline functionality
-├── manifest.json       # PWA manifest configuration
-├── exif.js             # EXIF metadata reading library
-├── piexif.js           # EXIF metadata writing library
-├── read_metadata.py    # Python script for metadata reading
-├── test_orientation.html # Test HTML file
-├── GEMINI.md           # Additional documentation
-├── README.md           # Main project documentation
-├── img/                # Image assets
-│   ├── ECUACORRIENTE.png
-│   ├── icon-512x512.png
-│   └── LOGO GDR.jpeg
-├── .gitattributes      # Git configuration
-└── QWEN.md             # This file
+├── app.js                 # Main application logic
+├── exif.js                # EXIF metadata reading library
+├── piexif.js              # EXIF metadata writing library
+├── sw.js                  # Service worker for offline functionality
+├── index.html             # Main application page
+├── manifest.json          # PWA manifest configuration
+├── style.css              # Styling for the application
+├── README.md              # Project documentation
+├── GEMINI.md              # Additional documentation
+├── test_orientation.html  # Test page for orientation functionality
+├── img/                   # Images directory
+│   ├── ECUACORRIENTE.png  # Background image
+│   ├── icon-512x512.png   # App icon
+│   └── LOGO GDR.jpeg      # Logo image
+└── .gitattributes         # Git attributes configuration
 ```
 
-## Building and Running
+## Core Technologies
+- **HTML5**: For structure and semantic markup
+- **CSS3**: For styling and responsive design
+- **JavaScript**: Core application logic
+- **getUserMedia API**: For camera access
+- **EXIF.js & piexif.js**: For metadata manipulation
+- **Service Workers**: For offline functionality
+- **Web App Manifest**: For PWA installation
 
-### Development Setup
-1. Clone or download the repository
-2. Serve the files through a web server (required for camera access and service worker)
-3. Open `index.html` in a modern browser that supports the required APIs
+## Key Features & Functionality
 
-### Local Testing
-The simplest way to run locally:
-1. Install Python 3.x
-2. Navigate to the project directory
-3. Run `python -m http.server 8000` (or any preferred port)
-4. Open `http://localhost:8000` in a modern browser
+### Camera Integration
+- Uses `navigator.mediaDevices.getUserMedia()` for camera access
+- Prioritizes rear-facing camera at highest resolution (4096x2160)
+- Falls back to front-facing camera if rear is unavailable
+- Supports zoom functionality with controls for zoom in/out
 
-### PWA Installation
-The app can be installed as a native application:
-- Mobile devices: Tap browser menu and select "Add to Home Screen"
-- Desktop browsers: Use the install button in the address bar
+### GPS Location
+- Uses `navigator.geolocation` with high accuracy enabled
+- Continuously monitors for improved location precision
+- Stores GPS coordinates in EXIF metadata with accuracy indicators
+- Includes altitude, heading, and speed if available
+
+### Metadata Embedding
+- Embeds form data as UserComment in EXIF metadata
+- Stores GPS coordinates as standard EXIF GPS data
+- Includes timestamp and date information
+- Uses piexif.js for EXIF data manipulation
+
+### Image Processing
+- Corrects image orientation based on EXIF data
+- Supports image rotation (left/right) while preserving metadata
+- Adds timestamp and logo to saved images
+- Supports zoom functionality during capture
+
+### Offline Functionality
+- Implemented with service worker (sw.js)
+- Caches static assets for offline access
+- Implements cache-first strategy for static resources
+- Network-first strategy with fallback for navigation
+
+### PWA Features
+- Web App Manifest for installation
+- Service worker for offline functionality
+- Responsive design for all device sizes
+- Locks screen orientation to portrait mode
+
+## Application Flow
+1. Automatically starts camera on page load
+2. Acquires GPS location with high accuracy
+3. User captures photo using camera interface
+4. Form appears for data entry (work front, coronation, etc.)
+5. User can view captured photo and rotate if needed
+6. Metadata is embedded in the photo EXIF data
+7. User can save photo to device gallery
+
+## Key Files & Components
+
+### app.js
+Main application file containing:
+- Camera initialization and control
+- GPS location acquisition
+- Form handling and validation
+- Image processing and metadata embedding
+- UI state management
+
+### sw.js
+Service worker implementing:
+- Cache strategies for static assets
+- Offline functionality
+- Runtime caching for dynamic content
+
+### manifest.json
+PWA configuration with:
+- App name, description, and icons
+- Display settings (standalone)
+- Theme colors
+- Orientation lock
+
+### style.css
+Styling system with:
+- CSS variables for consistent theming
+- Responsive design for all screen sizes
+- Custom styling for camera interface
+- Form and result display styling
 
 ## Development Conventions
+- Uses ES6+ JavaScript features
+- Modular approach with clear function separation
+- Error handling for camera and location permissions
+- Asynchronous operations with Promises and async/await
+- Responsive design principles
 
-### Code Structure
-- Main application logic is in app.js with a modular approach
-- State management is handled through the `appState` object
-- DOM element references are stored in the `elements` object
-- Event listeners are attached through the `attachEventListeners()` function
-- Image processing and EXIF data handling are separated into dedicated functions
+## Building and Running
+The application is a client-side web application that requires no build process:
 
-### Naming Conventions
-- JavaScript: camelCase for functions and variables
-- CSS: kebab-case for class names
-- Constants: UPPERCASE with underscores
+1. Simply open `index.html` in a modern browser
+2. The application will automatically register the service worker
+3. Camera access and location services will be requested on first use
 
-### Error Handling
-- Comprehensive error handling for camera access, location services, and image processing
-- User-friendly error messages displayed via the `showStatus()` function
-- Graceful fallbacks when certain APIs aren't available
+For development:
+- Modify HTML, CSS, or JavaScript files directly
+- Test functionality using modern browsers
+- Use `test_orientation.html` for orientation testing
 
-### Metadata Handling
-- Form data is stored as UserComment in EXIF data
-- GPS coordinates are stored in EXIF GPS section with precision
-- Date/time is stored in DateTimeOriginal field
-- Image orientation is handled to ensure proper display
-
-### Browser Compatibility
-The application is designed to work across modern browsers:
-- Chrome 50+
-- Firefox 54+
-- Edge 79+
-- Safari 11.1+
-- iOS Safari 11.3+
-
-## Key Components
-
-### Camera Module (`startCamera()`, `takePhoto()`)
-Handles camera access with fallback mechanisms for different camera types and orientations.
-
-### Metadata Module (`addMetadataToImage()`, `correctImageOrientation()`)
-Processes images and embeds form data, GPS coordinates, and timestamps as EXIF metadata.
-
-### Storage Module (`saveToGallery()`)
-Saves processed images to device gallery with timestamp and logo overlay.
-
-### PWA Module
-Service worker implementation for offline functionality and manifest configuration for app installation.
-
-### Service Worker Improvements
-Recent enhancements to the service worker for better cross-device compatibility include:
-- Implementation of separate caches for static and runtime assets
-- More robust error handling and fallback strategies
-- Network-first strategy for navigation requests with fallback to cached content
-- Cache-first strategy for static assets with proper response validation
-- Improved cache management and cleanup
-- Better handling of cross-origin requests
-- Proper implementation of `skipWaiting()` and `clients.claim()` for immediate activation
-
-### GPS Precision Improvements
-Recent enhancements to GPS precision include:
-- Enhanced geolocation options with `enableHighAccuracy: true` and extended timeout to allow for better GPS fix
-- Storage of additional GPS parameters including accuracy, altitude accuracy, heading, and speed
-- Improved precision in EXIF GPS data using 6 decimal places (microdegrees) instead of 4
-- Addition of GPSDOP (Dilution of Precision) to represent accuracy in metadata
-- Enhanced GPS timestamp information with both date and time stamps
-- Display of GPS accuracy information on images (±X meters)
-- Higher precision calculation of coordinates using rational values with more significant digits
-- Proper handling of GPS accuracy data when available
-- Continuous GPS monitoring during form filling to capture the most accurate location reading
-- Implementation of a GPS "watcher" that tracks the best available location (lowest accuracy value) while the user completes the form
-- Real-time display of GPS accuracy updates during form completion
-- Automatic stopping of GPS watching when metadata is saved or when moving to a new capture
-- Improved location accuracy by allowing extended time for GPS signal refinement during form completion
-
-### Zoom Functionality
-Added zoom controls to enhance user experience:
-- Zoom in and zoom out buttons with visual indicators
-- Real-time zoom level display (e.g., "1x", "2x", etc.)
-- Automatic detection of camera zoom capabilities
-- Support for both optical and digital zoom depending on device capabilities
-- Zoom constraints to prevent over-zooming beyond camera capabilities
-- Disabled zoom controls when camera is not active
-- Zoom level resets to 1x when starting a new capture
-- Intuitive UI with dedicated zoom controls
-
-### UI Improvements
-Optimized camera interface for better user experience:
-- Removed redundant start camera button since camera starts automatically on page load
-- Cleaner, more focused interface with reduced button clutter
-- Better visual hierarchy with zoom controls positioned optimally
-- Automatic camera initialization eliminates unnecessary user step
-- Streamlined workflow from camera activation to photo capture
-
-### Camera Stability Improvements
-Enhanced camera initialization and management for better reliability:
-- Robust automatic camera startup with multiple fallback options
-- Proper resource management with correct stream disposal
-- Enhanced error handling with informative user messages
-- Improved camera restart functionality for error recovery
-- Better DOM readiness checks before initializing camera
-- More reliable video track management and cleanup
-- Optimized timing for camera initialization after page load
+## Testing
+- The project includes a test page (`test_orientation.html`) for orientation functionality
+- All functionality can be tested through the main UI
+- Service worker behavior can be observed in browser dev tools
