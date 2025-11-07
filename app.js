@@ -768,8 +768,8 @@ async function takePhoto() {
             appState.isCameraActive = false;
             
             // Update the GPS display with the best location found so far
-            const gpsDisplay = document.getElementById('gps-coords');
-            if (appState.bestLocation && gpsDisplay) {
+            if (appState.bestLocation) {
+                const gpsDisplay = document.getElementById('gps-coords');
                 gpsDisplay.value = `${appState.bestLocation.latitude.toFixed(7)}, ${appState.bestLocation.longitude.toFixed(7)} (±${Math.round(appState.bestLocation.accuracy)}m)`;
             }
         } catch (error) {
@@ -971,12 +971,15 @@ function correctImageOrientation(imageDataUrl) {
 }
 
 // Function to draw date/time and logo on image ensuring labels remain horizontal
-async function addOverlaysToImage(imageDataUrl) {
+function drawTimestampAndLogoOnImage(imageDataUrl, timestamp) {
     return new Promise(async (resolve, reject) => {
         const img = new Image();
         img.onload = async function() {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
+            
+            // Get the actual image orientation from EXIF data
+            const imageOrientation = await getImageOrientation(imageDataUrl);
             
             // Set canvas dimensions based on image orientation
             if (imageOrientation === 6 || imageOrientation === 8) { // 90° or 270° rotated
@@ -987,19 +990,47 @@ async function addOverlaysToImage(imageDataUrl) {
                 canvas.height = img.height;
             }
 
-            // Draw the image (it should already be correctly oriented and rotated if applicable)
+            // Apply transformations based on EXIF orientation to correctly orient the image
+            ctx.save();
+            
+            switch (imageOrientation) {
+                case 2: // Horizontal flip
+                    ctx.translate(canvas.width, 0);
+                    ctx.scale(-1, 1);
+                    break;
+                case 3: // 180° rotate left
+                    ctx.translate(canvas.width, canvas.height);
+                    ctx.rotate(Math.PI);
+                    break;
+                case 4: // Vertical flip
+                    ctx.translate(0, canvas.height);
+                    ctx.scale(1, -1);
+                    break;
+                case 5: // Vertical flip + 90 rotate right
+                    ctx.rotate(0.5 * Math.PI);
+                    ctx.scale(1, -1);
+                    break;
+                case 6: // 90° rotate right
+                    ctx.rotate(0.5 * Math.PI);
+                    ctx.translate(0, -canvas.width);
+                    break;
+                case 7: // Horizontal flip + 90 rotate right
+                    ctx.rotate(0.5 * Math.PI);
+                    ctx.translate(canvas.height, -canvas.width);
+                    ctx.scale(-1, 1);
+                    break;
+                case 8: // 90° rotate left
+                    ctx.rotate(-0.5 * Math.PI);
+                    ctx.translate(-canvas.height, 0);
+                    break;
+            }
+
+            // Draw the image with correct orientation
             ctx.drawImage(img, 0, 0);
 
-            // Get the timestamp from the EXIF data for use on the image
-            const exifObj = piexif.load(imageDataUrl);
-            const timestamp = exifObj['Exif'] && exifObj['Exif'][piexif.ExifIFD.DateTimeOriginal] 
-                ? exifObj['Exif'][piexif.ExifIFD.DateTimeOriginal] 
-                : new Date().toLocaleString();
-
-            // Determine if the image is currently portrait or landscape based on canvas dimensions
-            // This is important for overlay positioning if the user rotated the image
-            const isCanvasPortrait = canvas.height > canvas.width;
-            const imageOrientation = isCanvasPortrait ? 6 : 1; // Simplified for overlay positioning
+            // Restore the context to its original state before adding text/logo
+            // This ensures text/logo will be drawn in horizontal orientation
+            ctx.restore();
 
             // Calculate dimensions for logo and text based on the original canvas dimensions
             let canvasWidth, canvasHeight;
@@ -1011,6 +1042,9 @@ async function addOverlaysToImage(imageDataUrl) {
                 canvasHeight = img.height;
             }
 
+            // For the preview, we don't add the timestamp and logo immediately
+            // Instead, we'll add them later after the user confirms the orientation
+            resolve(canvas.toDataURL('image/jpeg', 0.98));
         };
         
         img.onerror = function() {
@@ -1024,14 +1058,16 @@ async function addOverlaysToImage(imageDataUrl) {
 // Function to add metadata to the image
 async function addMetadataToImage(imageDataUrl, metadata) {
     console.log("Starting addMetadataToImage");
-    console.log("Base imageDataUrl (first 100 characters):", imageDataUrl.slice(0, 100));
+    console.log("imageDataUrl (first 100 characters):", imageDataUrl.slice(0, 100));
     
     try {
-        // Load EXIF data from the base image (already corrected and cropped)
+        // Add the date and time as text on the image
+        const timestampedImage = await drawTimestampAndLogoOnImage(imageDataUrl, metadata.timestamp);
+        
         if (typeof piexif !== 'undefined' && piexif.dump) {
             try {
                 console.log("Loading EXIF data from image...");
-                let exifObj = piexif.load(imageDataUrl);
+                let exifObj = piexif.load(timestampedImage);
                 console.log("EXIF data loaded:", JSON.parse(JSON.stringify(exifObj)));
 
                 if (!exifObj) {
@@ -1189,17 +1225,18 @@ async function addMetadataToImage(imageDataUrl, metadata) {
                 // exifObj["0th"][piexif.ImageIFD.Orientation] = 1; // Consider image as normal orientation
                 console.log("Final EXIF object before 'dump':", JSON.parse(JSON.stringify(exifObj)));
 
-                const exifBytes = piexif.dump(exifObj); // Dump EXIF data
+                const exifBytes = piexif.dump(exifObj);
                 console.log("EXIF data converted to bytes.");
 
-                const newImage = piexif.insert(exifBytes, imageDataUrl); // Insert into the base image
-                console.log("New image created with inserted EXIF data (without overlays).");
+                const newImage = piexif.insert(exifBytes, timestampedImage);
+                console.log("New image created with inserted EXIF data.");
 
                 appState.photoWithMetadata = newImage;
-                appState.photoWithExifDataUrl = newImage; // Store image with EXIF for preview and rotation
-                appState.originalPhotoWithMetadata = newImage; // Store original for rotation (this is the one with EXIF)
-                elements.photoPreview.src = newImage; // Display the image with EXIF
+                appState.originalPhotoWithMetadata = newImage; // Store original for rotation
+                elements.photoPreview.src = newImage;
                 
+                // If the preview image is not correctly oriented for display, we may need to correct it specifically for the preview
+                // The image should already be corrected by drawTimestampAndLogoOnImage, but let's ensure preview shows correctly
                 elements.formSection.classList.add('hidden');
                 elements.resultSection.classList.remove('hidden');
                 showStatus('¡Foto guardada con metadatos! Confirme la orientación y guarde en galería.', 'success');
@@ -1250,7 +1287,7 @@ async function addMetadataToImage(imageDataUrl, metadata) {
 
 // Function to rotate an image by a given angle (without adding timestamp/logo to preview)
 async function rotateImage(angle) {
-    if (!appState.photoWithExifDataUrl) { // Operate on the image with EXIF but no overlays
+    if (!appState.photoWithMetadata) {
         showStatus('No hay imagen para rotar', 'error');
         return;
     }
@@ -1258,7 +1295,7 @@ async function rotateImage(angle) {
     const img = new Image();
     img.onload = async function() {
         // Load the EXIF data from the current image to preserve it
-        const exifObj = piexif.load(appState.photoWithExifDataUrl);
+        const exifObj = piexif.load(appState.photoWithMetadata);
         
         // Create a canvas to rotate the image
         const canvas = document.createElement('canvas');
@@ -1303,11 +1340,11 @@ async function rotateImage(angle) {
         const imageWithExif = piexif.insert(exifBytes, rotatedImage);
         
         // Update the preview and app state
-        elements.photoPreview.src = imageWithExif; // Update preview
-        appState.photoWithExifDataUrl = imageWithExif; // Update the image with EXIF data
+        elements.photoPreview.src = imageWithExif;
+        appState.photoWithMetadata = imageWithExif;
         
         // Update the rotation angle in app state (keeping within 0-359 range)
-        appState.imageRotation = (appState.imageRotation + angle) % 360; // Track user rotation
+        appState.imageRotation = (appState.imageRotation + angle) % 360;
         if (appState.imageRotation < 0) {
             appState.imageRotation += 360;
         }
@@ -1317,7 +1354,7 @@ async function rotateImage(angle) {
         showStatus('Error al cargar la imagen para rotar', 'error');
     };
     
-    img.src = appState.photoWithExifDataUrl; // Load the image with EXIF for rotation
+    img.src = appState.photoWithMetadata;
 }
 
 // New capture function - now includes starting the camera automatically
@@ -1400,10 +1437,13 @@ function showStatus(message, type) {
 // Function to save to gallery with proper button state handling
 
 async function saveToGallery(imageUrl) {
-    // The imageUrl here is appState.photoWithExifDataUrl, which already has EXIF and user rotation applied.
-    // Now, add the visual overlays (timestamp, GPS, north arrow) before saving.
-    const finalImageToSave = await addOverlaysToImage(imageUrl);
-
+    // If image has been rotated, apply rotation to original image before saving
+    let imageToSave = imageUrl;
+    
+    if (appState.imageRotation !== 0 && appState.originalPhotoWithMetadata) {
+        // Apply rotation to the original image with metadata
+        imageToSave = await applyRotationToImage(appState.originalPhotoWithMetadata, appState.imageRotation);
+    }
 
     // Try to save directly to gallery using the File System Access API if supported
     if ('showSaveFilePicker' in window) {
@@ -1417,7 +1457,7 @@ async function saveToGallery(imageUrl) {
             });
             
             const writable = await fileHandle.createWritable();
-            const response = await fetch(finalImageToSave);
+            const response = await fetch(imageToSave);
             const blob = await response.blob();
             await writable.write(blob);
             await writable.close();
@@ -1433,7 +1473,285 @@ async function saveToGallery(imageUrl) {
     }
     
     // Fallback to download method
-    saveUsingDownloadAPI(finalImageToSave);
+    saveUsingDownloadAPI(imageToSave);
+}
+
+// Function to add timestamp and logo to an image before saving to gallery
+async function addTimestampAndLogoToImage(imageUrl) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = function() {
+            // Load the EXIF data from the original image
+            const exifObj = piexif.load(imageUrl);
+            
+            // Get the timestamp from the EXIF data for use on the image
+            const timestamp = exifObj['Exif'] && exifObj['Exif'][piexif.ExifIFD.DateTimeOriginal] 
+                ? exifObj['Exif'][piexif.ExifIFD.DateTimeOriginal] 
+                : new Date().toLocaleString();
+            
+            // Create a canvas to add timestamp and logo to the image
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = img.width;
+            canvas.height = img.height;
+            
+            // Draw the image on the canvas
+            ctx.drawImage(img, 0, 0);
+            
+            // Add the north direction indicator, and timestamp to the image when saving
+            const drawOverlays = () => {
+                const padding = Math.min(25, canvas.width * 0.02, canvas.height * 0.02); // Make padding proportional to image
+
+                // Draw north direction indicator in the bottom center with white text and black outline
+                const fontSize = Math.min(80, Math.max(20, Math.floor(canvas.height * 0.04))); // Scale font with image size
+                ctx.font = `bold ${fontSize}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+
+                const centerX = canvas.width / 2;
+                const northY = canvas.height - padding;
+                
+                // Extract GPS data from EXIF if available
+                let gpsInfo = 'N'; // Default if no GPS data
+                if (exifObj.GPS) {
+                    // Get GPS coordinates from EXIF data
+                    let lat = null, lng = null;
+                    let latRef = null, lngRef = null;
+                    
+                    // Process GPS coordinates from EXIF
+                    if (exifObj.GPS[piexif.GPSIFD.GPSLatitude]) {
+                        const gpsLat = exifObj.GPS[piexif.GPSIFD.GPSLatitude];
+                        if (Array.isArray(gpsLat) && gpsLat.length === 3) {
+                            // Calculate decimal degrees from DMS (Degrees, Minutes, Seconds)
+                            const deg = gpsLat[0][0] / gpsLat[0][1];
+                            const min = gpsLat[1][0] / gpsLat[1][1];
+                            const sec = gpsLat[2][0] / gpsLat[2][1];
+                            lat = deg + (min / 60) + (sec / 3600);
+                        }
+                    }
+                    
+                    if (exifObj.GPS[piexif.GPSIFD.GPSLongitude]) {
+                        const gpsLng = exifObj.GPS[piexif.GPSIFD.GPSLongitude];
+                        if (Array.isArray(gpsLng) && gpsLng.length === 3) {
+                            // Calculate decimal degrees from DMS (Degrees, Minutes, Seconds)
+                            const deg = gpsLng[0][0] / gpsLng[0][1];
+                            const min = gpsLng[1][0] / gpsLng[1][1];
+                            const sec = gpsLng[2][0] / gpsLng[2][1];
+                            lng = deg + (min / 60) + (sec / 3600);
+                        }
+                    }
+                    
+                    latRef = exifObj.GPS[piexif.GPSIFD.GPSLatitudeRef];
+                    lngRef = exifObj.GPS[piexif.GPSIFD.GPSLongitudeRef];
+                    
+                    // Format GPS coordinates if available with higher precision
+                    if (lat !== null && lng !== null && latRef && lngRef) {
+                        gpsInfo = `N ${Math.abs(lat).toFixed(6)}° ${latRef}, ${Math.abs(lng).toFixed(6)}° ${lngRef}`;
+                        
+                        // If accuracy is available, add it to the display
+                        if (exifObj.GPS[piexif.GPSIFD.GPSDOP]) {
+                            const dop = exifObj.GPS[piexif.GPSIFD.GPSDOP];
+                            if (Array.isArray(dop) && dop[1] !== 0) {
+                                const accuracy = (dop[0] / dop[1]).toFixed(1);
+                                gpsInfo += ` (±${accuracy}m)`;
+                            }
+                        }
+                    }
+                }
+                
+                // Draw a simple north arrow symbol above the GPS info with white color and black outline
+                ctx.strokeStyle = 'black'; // Black outline
+                ctx.lineWidth = 2; // Outline thickness
+                ctx.fillStyle = 'white'; // White fill color
+                ctx.strokeText('⬆', centerX, northY - fontSize * 0.8);
+                ctx.fillText('⬆', centerX, northY - fontSize * 0.8);
+                
+                // Draw GPS info with white color and black outline
+                ctx.strokeText(gpsInfo, centerX, northY);
+                ctx.fillText(gpsInfo, centerX, northY);
+                
+                // Prepare to draw timestamp text in the bottom-right corner with white text and black outline
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'bottom';
+
+                const timestampX = canvas.width - padding;
+                const timestampY = canvas.height - padding;
+                
+                // Draw timestamp with white color and black outline
+                ctx.strokeStyle = 'black'; // Black outline
+                ctx.lineWidth = 2; // Outline thickness
+                ctx.fillStyle = 'white'; // White fill color
+                ctx.strokeText(timestamp, timestampX, timestampY);
+                ctx.fillText(timestamp, timestampX, timestampY);
+
+                // Convert canvas back to data URL
+                const imageWithText = canvas.toDataURL('image/jpeg', 0.98);
+                
+                // Reinsert the original EXIF data into the image with text
+                const exifBytes = piexif.dump(exifObj);
+                const imageWithExif = piexif.insert(exifBytes, imageWithText);
+                
+                resolve(imageWithExif);
+            };
+            
+            drawOverlays();
+        };
+        
+        img.onerror = function() {
+            reject(new Error('Error loading image'));
+        };
+        
+        img.src = imageUrl;
+    });
+}
+
+// Apply rotation to an image while preserving its metadata and adding timestamp/logo only when saving
+async function applyRotationToImage(imageUrl, rotationAngle) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = async function() {
+            // Load the EXIF data from the original image
+            const exifObj = piexif.load(imageUrl);
+            
+            // Get the timestamp from the EXIF data for use on the rotated image
+            const timestamp = exifObj['Exif'] && exifObj['Exif'][piexif.ExifIFD.DateTimeOriginal] 
+                ? exifObj['Exif'][piexif.ExifIFD.DateTimeOriginal] 
+                : new Date().toLocaleString();
+            
+            // Create a canvas to rotate the image
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Calculate new canvas dimensions based on rotation
+            if (rotationAngle === 90 || rotationAngle === -90 || rotationAngle === 270 || rotationAngle === -270) {
+                canvas.width = img.height;
+                canvas.height = img.width;
+            } else {
+                canvas.width = img.width;
+                canvas.height = img.height;
+            }
+            
+            // Save the initial context state to restore later
+            ctx.save();
+            
+            // Move to the center of the canvas
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            
+            // Rotate the canvas
+            ctx.rotate(rotationAngle * Math.PI / 180);
+            
+            // Draw the image centered on the rotated canvas
+            ctx.drawImage(img, -img.width / 2, -img.height / 2);
+            
+            // Restore the initial context state to draw text and logo in horizontal orientation
+            ctx.restore();
+            
+            // Draw the north direction indicator, and timestamp horizontally on the rotated image when saving
+            const drawOverlays = () => {
+                const padding = Math.min(25, canvas.width * 0.02, canvas.height * 0.02); // Make padding proportional to image
+
+                // Draw north direction indicator in the bottom center with white text and black outline
+                const fontSize = Math.min(80, Math.max(20, Math.floor(canvas.height * 0.04))); // Scale font with image size
+                ctx.font = `bold ${fontSize}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+
+                const centerX = canvas.width / 2;
+                const northY = canvas.height - padding;
+                
+                // Extract GPS data from EXIF if available
+                let gpsInfo = 'N'; // Default if no GPS data
+                if (exifObj.GPS) {
+                    // Get GPS coordinates from EXIF data
+                    let lat = null, lng = null;
+                    let latRef = null, lngRef = null;
+                    
+                    // Process GPS coordinates from EXIF
+                    if (exifObj.GPS[piexif.GPSIFD.GPSLatitude]) {
+                        const gpsLat = exifObj.GPS[piexif.GPSIFD.GPSLatitude];
+                        if (Array.isArray(gpsLat) && gpsLat.length === 3) {
+                            // Calculate decimal degrees from DMS (Degrees, Minutes, Seconds)
+                            const deg = gpsLat[0][0] / gpsLat[0][1];
+                            const min = gpsLat[1][0] / gpsLat[1][1];
+                            const sec = gpsLat[2][0] / gpsLat[2][1];
+                            lat = deg + (min / 60) + (sec / 3600);
+                        }
+                    }
+                    
+                    if (exifObj.GPS[piexif.GPSIFD.GPSLongitude]) {
+                        const gpsLng = exifObj.GPS[piexif.GPSIFD.GPSLongitude];
+                        if (Array.isArray(gpsLng) && gpsLng.length === 3) {
+                            // Calculate decimal degrees from DMS (Degrees, Minutes, Seconds)
+                            const deg = gpsLng[0][0] / gpsLng[0][1];
+                            const min = gpsLng[1][0] / gpsLng[1][1];
+                            const sec = gpsLng[2][0] / gpsLng[2][1];
+                            lng = deg + (min / 60) + (sec / 3600);
+                        }
+                    }
+                    
+                    latRef = exifObj.GPS[piexif.GPSIFD.GPSLatitudeRef];
+                    lngRef = exifObj.GPS[piexif.GPSIFD.GPSLongitudeRef];
+                    
+                    // Format GPS coordinates if available with higher precision
+                    if (lat !== null && lng !== null && latRef && lngRef) {
+                        gpsInfo = `N ${Math.abs(lat).toFixed(6)}° ${latRef}, ${Math.abs(lng).toFixed(6)}° ${lngRef}`;
+                        
+                        // If accuracy is available, add it to the display
+                        if (exifObj.GPS[piexif.GPSIFD.GPSDOP]) {
+                            const dop = exifObj.GPS[piexif.GPSIFD.GPSDOP];
+                            if (Array.isArray(dop) && dop[1] !== 0) {
+                                const accuracy = (dop[0] / dop[1]).toFixed(1);
+                                gpsInfo += ` (±${accuracy}m)`;
+                            }
+                        }
+                    }
+                }
+                
+                // Draw a simple north arrow symbol above the GPS info with white color and black outline
+                ctx.strokeStyle = 'black'; // Black outline
+                ctx.lineWidth = 2; // Outline thickness
+                ctx.fillStyle = 'white'; // White fill color
+                ctx.strokeText('⬆', centerX, northY - fontSize * 0.8);
+                ctx.fillText('⬆', centerX, northY - fontSize * 0.8);
+                
+                // Draw GPS info with white color and black outline
+                ctx.strokeText(gpsInfo, centerX, northY);
+                ctx.fillText(gpsInfo, centerX, northY);
+
+                // Prepare to draw timestamp text in the bottom-right corner with white text and black outline
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'bottom';
+
+                const timestampX = canvas.width - padding;
+                const timestampY = canvas.height - padding;
+                
+                // Draw timestamp with white color and black outline
+                ctx.strokeStyle = 'black'; // Black outline
+                ctx.lineWidth = 2; // Outline thickness
+                ctx.fillStyle = 'white'; // White fill color
+                ctx.strokeText(timestamp, timestampX, timestampY);
+                ctx.fillText(timestamp, timestampX, timestampY);
+
+                // Convert canvas back to data URL
+                const rotatedImageWithText = canvas.toDataURL('image/jpeg', 0.98);
+                
+                // Reinsert the original EXIF data into the rotated image with text
+                const exifBytes = piexif.dump(exifObj);
+                const imageWithExif = piexif.insert(exifBytes, rotatedImageWithText);
+                
+                resolve(imageWithExif);
+            };
+            
+            drawOverlays();
+        };
+        
+        img.onerror = function() {
+            reject(new Error('Error loading image for rotation'));
+        };
+        
+        img.src = imageUrl;
+    });
 }
 
 
