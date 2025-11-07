@@ -764,7 +764,7 @@ function cropToAspectRatio(imageDataUrl) {
             ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, sWidth, sHeight);
 
             // Get the cropped image as a data URL
-            resolve(canvas.toDataURL('image/jpeg', 0.92)); // Calidad reducida para mayor velocidad
+            resolve(canvas.toDataURL('image/jpeg', 0.96)); // Calidad reducida para mayor velocidad
         };
         img.onerror = () => reject(new Error('Error al cargar la imagen para recortar.'));
         img.src = imageDataUrl;
