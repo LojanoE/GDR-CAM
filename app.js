@@ -14,7 +14,9 @@ const appState = {
     originalPhotoWithMetadata: null, // Store the original image for rotation operations
     currentZoom: 1.0, // Current zoom level
     maxZoom: 1.0, // Maximum available zoom level
-    zoomSupported: false // Whether zoom is supported by the camera
+    zoomSupported: false, // Whether zoom is supported by the camera
+    isGpsDisplayThrottled: false, // Flag to throttle GPS display updates
+    gpsDisplayThrottleTime: 5000 // Throttle GPS display updates to every 5 seconds
 };
 
 // DOM Elements
@@ -644,7 +646,15 @@ function startLocationWatching(gpsDisplay) {
 
             // Update the display with the latest best location
             if (gpsDisplay && appState.bestLocation) {
-                gpsDisplay.value = `${appState.bestLocation.latitude.toFixed(7)}, ${appState.bestLocation.longitude.toFixed(7)} (±${Math.round(appState.bestLocation.accuracy)}m)`;
+                // Throttle UI updates to prevent performance issues from frequent DOM manipulation.
+                if (!appState.isGpsDisplayThrottled) {
+                    gpsDisplay.value = `${appState.bestLocation.latitude.toFixed(7)}, ${appState.bestLocation.longitude.toFixed(7)} (±${Math.round(appState.bestLocation.accuracy)}m)`;
+                    
+                    appState.isGpsDisplayThrottled = true;
+                    setTimeout(() => {
+                        appState.isGpsDisplayThrottled = false;
+                    }, appState.gpsDisplayThrottleTime); // Use the configured throttle time
+                }
             }
         },
         (error) => {
@@ -722,6 +732,11 @@ function cropToAspectRatio(imageDataUrl) {
 
 // Take photo
 async function takePhoto() {
+    // Disable button to prevent multiple clicks and show processing state
+    elements.takePhotoBtn.disabled = true;
+    elements.takePhotoBtn.innerHTML = '<span class="loading"></span> Procesando...';
+
+
     const processImage = async (imageSource) => {
         try {
             const canvas = document.createElement('canvas');
@@ -764,7 +779,10 @@ async function takePhoto() {
             elements.video.srcObject = null;
             elements.cameraSection.classList.add('hidden');
             elements.formSection.classList.remove('hidden');
-            elements.takePhotoBtn.disabled = true;
+            
+            // Restore button state
+            elements.takePhotoBtn.innerHTML = 'Tomar Foto';
+
             appState.isCameraActive = false;
             
             // Update the GPS display with the best location found so far
@@ -775,6 +793,8 @@ async function takePhoto() {
         } catch (error) {
             console.error('Error processing the captured image:', error);
             showStatus('Error al procesar la imagen capturada.', 'error');
+            // Attempt to restart the camera on processing failure
+            restartCamera();
         }
     };
 
@@ -796,6 +816,8 @@ async function takePhoto() {
                 image.onerror = (error) => {
                     console.error('Error loading captured photo:', error);
                     showStatus('Error al cargar la foto capturada.', 'error');
+                    // Attempt to restart the camera on loading failure
+                    restartCamera();
                 };
             })
             .catch(error => {
@@ -812,15 +834,26 @@ async function takePhoto() {
                         image.onerror = (error) => {
                             console.error('Error loading captured photo with default settings:', error);
                             showStatus('Error al cargar la foto capturada.', 'error');
+                            // Attempt to restart the camera on loading failure
+                            restartCamera();
                         };
                     })
                     .catch(error2 => {
                         console.error('Error taking photo with default settings:', error2);
                         showStatus('Error al tomar la foto. Intente recargar la página.', 'error');
+                        // Attempt to restart the camera on final failure
+                        restartCamera();
                     });
             });
     } else {
-        await processImage(elements.video);
+        // Fallback for browsers without ImageCapture
+        try {
+            await processImage(elements.video);
+        } catch (fallbackError) {
+            console.error('Error taking photo with video fallback:', fallbackError);
+            showStatus('Error crítico al tomar la foto. Reiniciando cámara...', 'error');
+            restartCamera();
+        }
     }
 }
 
@@ -1422,6 +1455,11 @@ function restartCamera() {
     // Attempt to start camera again
     startCamera();
 }
+
+
+
+
+
 
 // Function to show status messages
 function showStatus(message, type) {
