@@ -447,26 +447,37 @@ async function startCamera() {
         
         try {
             appState.stream = await navigator.mediaDevices.getUserMedia(constraints);
-        } catch (environmentError) {
-            console.warn('Could not access rear camera at maximum resolution, trying with default resolution:', environmentError);
-            // If it fails, try with rear camera at default resolution
+        } catch (err1) {
+            console.warn('Intento 1 fallido (trasera, alta res). Intentando con trasera por defecto.', err1.name);
             try {
                 const constraintsFallback = { 
                     video: { facingMode: 'environment' } 
                 };
                 appState.stream = await navigator.mediaDevices.getUserMedia(constraintsFallback);
-            } catch (fallbackError) {
-                console.warn('Could not access rear camera, trying with front camera:', fallbackError);
-                // If it fails, try with front camera
-                const constraintsAlt = { 
-                    video: { 
-                        facingMode: 'user',
-                        width: { ideal: 4096 },  // Maximum resolution available
-                        height: { ideal: 2160 },
-                        aspectRatio: { ideal: 16/9 }
-                    } 
-                };
-                appState.stream = await navigator.mediaDevices.getUserMedia(constraintsAlt);
+            } catch (err2) {
+                console.warn('Intento 2 fallido (trasera, por defecto). Intentando con frontal alta res.', err2.name);
+                try {
+                    const constraintsAlt = { 
+                        video: { 
+                            facingMode: 'user',
+                            width: { ideal: 4096 },
+                            height: { ideal: 2160 },
+                            aspectRatio: { ideal: 16/9 }
+                        } 
+                    };
+                    appState.stream = await navigator.mediaDevices.getUserMedia(constraintsAlt);
+                } catch (err3) {
+                    console.warn('Intento 3 fallido (frontal, alta res). Intentando con frontal por defecto.', err3.name);
+                    try {
+                        const constraintsUserDefault = { video: { facingMode: 'user' } };
+                        appState.stream = await navigator.mediaDevices.getUserMedia(constraintsUserDefault);
+                    } catch (err4) {
+                        console.warn('Intento 4 fallido (frontal, por defecto). Intentando con cualquier cámara disponible.', err4.name);
+                        // Final attempt: try to get any video input, without specifying facingMode
+                        const finalAttemptConstraints = { video: true };
+                        appState.stream = await navigator.mediaDevices.getUserMedia(finalAttemptConstraints);
+                    }
+                }
             }
         }
         
@@ -808,12 +819,15 @@ async function takePhoto() {
         
         appState.imageCapture.takePhoto(photoSettings)
             .then(blob => {
+                const objectURL = URL.createObjectURL(blob);
                 const image = new Image();
-                image.src = URL.createObjectURL(blob);
+                image.src = objectURL;
                 image.onload = async () => {
                     await processImage(image);
+                    URL.revokeObjectURL(objectURL); // Liberar memoria del Object URL
                 };
                 image.onerror = (error) => {
+                    URL.revokeObjectURL(objectURL); // Liberar memoria también en caso de error
                     console.error('Error loading captured photo:', error);
                     showStatus('Error al cargar la foto capturada.', 'error');
                     // Attempt to restart the camera on loading failure
@@ -826,12 +840,15 @@ async function takePhoto() {
                 // If it fails with high-resolution settings, try with default
                 appState.imageCapture.takePhoto()
                     .then(blob => {
+                        const objectURL = URL.createObjectURL(blob);
                         const image = new Image();
-                        image.src = URL.createObjectURL(blob);
+                        image.src = objectURL;
                         image.onload = async () => {
                             await processImage(image);
+                            URL.revokeObjectURL(objectURL); // Liberar memoria del Object URL
                         };
                         image.onerror = (error) => {
+                            URL.revokeObjectURL(objectURL); // Liberar memoria también en caso de error
                             console.error('Error loading captured photo with default settings:', error);
                             showStatus('Error al cargar la foto capturada.', 'error');
                             // Attempt to restart the camera on loading failure
@@ -1414,6 +1431,10 @@ function newCapture() {
     // Reset rotation state
     appState.imageRotation = 0;
     appState.originalPhotoWithMetadata = null;
+    // Limpiar los datos de la foto anterior para liberar memoria
+    appState.capturedPhotoDataUrl = null;
+    appState.photoWithMetadata = null;
+    elements.photoPreview.src = ''; // Limpiar la vista previa de la imagen
     
     // Stop location watching when starting a new capture
     stopLocationWatching();
