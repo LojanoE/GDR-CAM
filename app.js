@@ -475,8 +475,8 @@ async function startCamera() {
         let constraints = { 
             video: { 
                 facingMode: 'environment',
-                width: { ideal: 1920 },  // Reducido a Full HD para mayor velocidad
-                height: { ideal: 1080 },
+                width: { ideal: 3840 },  // Aumentado a 4K para mayor calidad
+                height: { ideal: 2160 },
                 aspectRatio: { ideal: 16/9 } // Mantener el aspect ratio
             } 
         };
@@ -496,8 +496,8 @@ async function startCamera() {
                     const constraintsAlt = { 
                         video: { 
                             facingMode: 'user',
-                            width: { ideal: 1920 },
-                            height: { ideal: 1080 },
+                            width: { ideal: 3840 },
+                            height: { ideal: 2160 },
                             aspectRatio: { ideal: 16/9 }
                         } 
                     };
@@ -802,7 +802,7 @@ async function takePhoto() {
             context.drawImage(imageSource, 0, 0, width, height);
             
             // Capture with maximum quality (98%)
-            let imageDataUrl = canvas.toDataURL('image/jpeg', 0.92); // Calidad reducida para mayor velocidad
+            let imageDataUrl = canvas.toDataURL('image/jpeg', 0.98); // Calidad aumentada para mejor detalle
 
             // Correct the image orientation based on EXIF data before storing
             try {
@@ -851,8 +851,8 @@ async function takePhoto() {
     if (appState.imageCapture) {
         // Set up options for maximum image quality
         const photoSettings = {
-            imageWidth: 1920,  // Reducido a Full HD
-            imageHeight: 1080,
+            imageWidth: 3840,  // Aumentado a 4K
+            imageHeight: 2160,
             fillLightMode: 'auto'
         };
         
