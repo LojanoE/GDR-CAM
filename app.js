@@ -1372,6 +1372,9 @@ async function addMetadataToImage(imageDataUrl, metadata) {
                 appState.originalPhotoWithMetadata = newImage; // Store original for rotation operations
                 elements.photoPreview.src = newImage;
                 
+                // Automatically rotate the image 90 degrees to the left as requested
+                await rotateImage(-90);
+
                 // If the preview image is not correctly oriented for display, we may need to correct it specifically for the preview
                 // The image should already be corrected by drawTimestampAndLogoOnImage, but let's ensure preview shows correctly
                 elements.formSection.classList.add('hidden');

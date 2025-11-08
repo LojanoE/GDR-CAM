@@ -1,6 +1,6 @@
-const CACHE_NAME = 'gdr-cam-v64';
-const STATIC_CACHE_NAME = 'gdr-cam-static-v64';
-const RUNTIME_CACHE_NAME = 'gdr-cam-runtime-v64';
+const CACHE_NAME = 'gdr-cam-v65';
+const STATIC_CACHE_NAME = 'gdr-cam-static-v65';
+const RUNTIME_CACHE_NAME = 'gdr-cam-runtime-v65';
 
 const urlsToCache = [
   './',
