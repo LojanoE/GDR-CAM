@@ -1571,14 +1571,6 @@ function showStatus(message, type) {
 // Function to save to gallery with proper button state handling
 
 async function saveToGallery(imageUrl) {
-    // If image has been rotated, apply rotation to original image before saving
-    let imageToSave = imageUrl;
-    
-    if (appState.imageRotation !== 0 && appState.originalPhotoWithMetadata) {
-        // Apply rotation to the original image with metadata
-        imageToSave = await applyRotationToImage(appState.originalPhotoWithMetadata, appState.imageRotation);
-    }
-
     // Try to save directly to gallery using the File System Access API if supported
     if ('showSaveFilePicker' in window) {
         try {
@@ -1586,28 +1578,38 @@ async function saveToGallery(imageUrl) {
                 suggestedName: `gdr-cam-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.jpg`,
                 types: [{
                     description: 'JPEG Images',
-                    accept: { 'image/jpeg': ['.jpg', '.jpeg'] }
+                    accept: {
+                        'image/jpeg': ['.jpg', '.jpeg']
+                    }
                 }]
             });
-            
+
             const writable = await fileHandle.createWritable();
-            const response = await fetch(imageToSave);
+            const response = await fetch(imageUrl);
             const blob = await response.blob();
             await writable.write(blob);
             await writable.close();
-            
+
             showStatus('Imagen guardada en la galería', 'success');
             elements.downloadPhotoBtn.innerHTML = 'Guardar en Galería';
             elements.downloadPhotoBtn.disabled = false;
             return;
         } catch (error) {
-            console.warn('File System Access API failed, falling back to download method:', error);
-            // Fall through to the download method below
+            // Handle user cancellation (AbortError) gracefully
+            if (error.name === 'AbortError') {
+                console.log('Guardado cancelado por el usuario.');
+                showStatus('Guardado cancelado.', 'info');
+                elements.downloadPhotoBtn.innerHTML = 'Guardar en Galería';
+                elements.downloadPhotoBtn.disabled = false;
+                return; // Stop execution if user cancelled
+            }
+            console.warn('showSaveFilePicker falló, recurriendo al método de descarga:', error);
+            // Fall through to the download method if any other error occurs
         }
     }
-    
+
     // Fallback to download method
-    saveUsingDownloadAPI(imageToSave);
+    saveUsingDownloadAPI(imageUrl);
 }
 
 // Function to add timestamp and logo to an image before saving to gallery
@@ -1891,51 +1893,28 @@ async function applyRotationToImage(imageUrl, rotationAngle) {
 
 
 // Alternative method using the download API with Android optimization
-
 async function saveUsingDownloadAPI(imageUrl) {
-
     try {
-        // For Android, try using the download approach with proper MIME type
         const response = await fetch(imageUrl);
         const blob = await response.blob();
-        
-        // Check if we're on a mobile device (Android/iOS)
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        
-        if (isMobile && navigator.userAgent.indexOf('Android') !== -1) {
-            // On Android devices, try to save using the download approach
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `gdr-cam-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.jpg`;
-            
-            // Trigger the download
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            // Clean up the URL object
-            URL.revokeObjectURL(url);
-            
-            // On Android, this saves to Downloads folder which is usually synced with gallery
-            showStatus('Imagen guardada en Descargas. Puede aparecer en la Galería en unos segundos.', 'success');
-        } else {
-            // For non-Android devices, use the standard approach
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `gdr-cam-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.jpg`;
-            
-            // Trigger the download
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            // Clean up the URL object
-            URL.revokeObjectURL(url);
-            
-            showStatus('Imagen guardada en la galería', 'success');
-        }
+
+        // Create a temporary URL for the blob
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `gdr-cam-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.jpg`;
+
+        // Trigger the download
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // Clean up the URL object after a short delay to ensure the download starts
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+
+        // On mobile, this saves to the "Downloads" folder. The media scanner will pick it up for the gallery.
+        showStatus('Imagen guardada en Descargas. Revisa tu galería.', 'success');
+
     } catch (error) {
         console.error('Error al guardar imagen con el método de descarga:', error);
         showStatus('Error al guardar la imagen.', 'error');
@@ -1947,8 +1926,6 @@ async function saveUsingDownloadAPI(imageUrl) {
         }
     }
 }
-
-
 
 // Initialize the app when DOM is loaded
 
