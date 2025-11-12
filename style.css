@@ -299,3 +299,9 @@ body {
 
 
 }
+
+.flash-text {
+    font-size: 0.8rem;
+    vertical-align: middle;
+    margin-left: 5px;
+}

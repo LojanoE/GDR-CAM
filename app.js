@@ -46,6 +46,7 @@ const elements = {
     otherWorkFrontGroup: null, // For the custom work front input
     otherWorkFrontInput: null,
     flashToggleBtn: null,
+    flashModeText: null,
 };
 
 // Initialize the application
@@ -72,6 +73,7 @@ function init() {
     elements.otherWorkFrontGroup = document.getElementById('other-work-front-group');
     elements.otherWorkFrontInput = document.getElementById('other-work-front');
     elements.flashToggleBtn = document.getElementById('flash-toggle');
+    elements.flashModeText = document.getElementById('flash-mode-text');
     
     // Load dynamic and persistent data
     loadWorkFronts();
@@ -503,14 +505,17 @@ function updateFlashControl() {
         case 'auto':
             icon.className = 'fas fa-bolt';
             elements.flashToggleBtn.title = 'Flash: Automático';
+            elements.flashModeText.textContent = 'AUTO';
             break;
         case 'flash':
             icon.className = 'fas fa-bolt';
             elements.flashToggleBtn.title = 'Flash: Encendido';
+            elements.flashModeText.textContent = 'ON';
             break;
         case 'off':
             icon.className = 'fas fa-ban'; // Using a 'ban' icon for off
             elements.flashToggleBtn.title = 'Flash: Apagado';
+            elements.flashModeText.textContent = 'OFF';
             break;
     }
     // A visual cue for 'on' vs 'auto' could be color, but for now, title is enough.
