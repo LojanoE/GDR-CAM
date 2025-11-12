@@ -919,9 +919,13 @@ async function takePhoto() {
     };
 
     if (appState.imageCapture) {
-        // Use default stream resolution to avoid OverconstrainedError.
-        // The stream is already configured to the best possible resolution in startCamera.
-        appState.imageCapture.takePhoto()
+        // Re-introduce photoSettings just for flash control.
+        const photoSettings = {
+            fillLightMode: appState.flashModes[appState.currentFlashIndex]
+        };
+        console.log('Taking photo with settings:', photoSettings);
+
+        appState.imageCapture.takePhoto(photoSettings)
             .then(blob => {
                 const objectURL = URL.createObjectURL(blob);
                 const image = new Image();
@@ -938,9 +942,21 @@ async function takePhoto() {
                 };
             })
             .catch(error => {
-                console.error('Error taking photo:', error);
-                showStatus('Error al tomar la foto. Intente recargar la página.', 'error');
-                restartCamera();
+                console.error('Error taking photo with settings, trying without:', error);
+                // Fallback if even flash settings fail on some devices
+                appState.imageCapture.takePhoto().then(blob => {
+                    const objectURL = URL.createObjectURL(blob);
+                    const image = new Image();
+                    image.src = objectURL;
+                    image.onload = async () => { 
+                        await processImage(image);
+                        URL.revokeObjectURL(objectURL);
+                    };
+                }).catch(err2 => {
+                    console.error('Error taking photo on fallback attempt:', err2);
+                    showStatus('Error crítico al tomar la foto.', 'error');
+                    restartCamera();
+                });
             });
     } else {
         // Fallback for browsers without ImageCapture
