@@ -344,3 +344,132 @@ body {
 .searchable-options .option.hidden {
     display: none;
 }
+
+/* Botón de galería en el encabezado */
+.gallery-btn {
+    background-color: transparent;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    margin-left: auto; /* Empuja el botón a la derecha */
+    padding: 5px 10px;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+}
+
+.gallery-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Estilos para la galería modal */
+.gallery-modal-content {
+    background-color: #2c3e50;
+    margin: 2% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 90%;
+    max-width: 900px;
+    border-radius: 8px;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.gallery-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.gallery-header h2 {
+    margin: 0;
+}
+
+.close-gallery-button {
+    font-size: 28px;
+    font-weight: bold;
+    color: #aaa;
+    cursor: pointer;
+}
+
+.close-gallery-button:hover,
+.close-gallery-button:focus {
+    color: #fff;
+}
+
+.gallery-content {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 15px;
+    padding: 10px 0;
+}
+
+.gallery-item {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    cursor: pointer;
+    aspect-ratio: 3/4; /* Para mantener una proporción consistente */
+}
+
+.gallery-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.gallery-item-actions {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 5px;
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+}
+
+.gallery-item:hover .gallery-item-actions {
+    transform: translateY(0);
+}
+
+.gallery-item-actions button {
+    background: var(--primary-color);
+    border: none;
+    color: white;
+    padding: 3px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    margin-right: 3px;
+}
+
+.gallery-item-actions button:hover {
+    background: #0056b3;
+}
+
+.gallery-item-actions .save-btn {
+    background: var(--success-color);
+}
+
+.gallery-item-actions .save-btn:hover {
+    background: #218838;
+}
+
+.gallery-empty-message {
+    text-align: center;
+    padding: 40px;
+    color: #aaa;
+    font-style: italic;
+}

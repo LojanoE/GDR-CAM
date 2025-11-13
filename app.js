@@ -21,7 +21,8 @@ const appState = {
     isFormInteractionActive: false, // Flag to pause background updates during form interaction
     flashModes: ['auto', 'flash', 'off'], // Available flash modes
     currentFlashIndex: 0, // Current flash mode index
-    flashSupported: false // Whether flash is supported by the camera
+    flashSupported: false, // Whether flash is supported by the camera
+    galleryPhotos: [] // Store gallery photos
 };
 
 // DOM Elements
@@ -49,6 +50,10 @@ const elements = {
     workFrontSearch: null, // For the work front search input
     workFrontOptions: null, // For the custom dropdown options container
     flashModeText: null,
+    galleryBtn: null, // Gallery button
+    galleryModal: null, // Gallery modal
+    galleryGrid: null, // Gallery grid container
+    closeGalleryButton: null, // Close gallery button
 };
 
 // Initialize the application
@@ -78,10 +83,15 @@ function init() {
     elements.workFrontSearch = document.getElementById('work-front-search');
     elements.workFrontOptions = document.getElementById('work-front-options');
     elements.flashModeText = document.getElementById('flash-mode-text');
+    elements.galleryBtn = document.getElementById('gallery-btn');
+    elements.galleryModal = document.getElementById('gallery-modal');
+    elements.galleryGrid = document.getElementById('gallery-grid');
+    elements.closeGalleryButton = document.querySelector('.close-gallery-button');
     
     // Load dynamic and persistent data
     loadWorkFronts();
     loadPersistentData();
+    loadGalleryPhotos(); // Load gallery photos
     
     // Initialize zoom controls
     initializeZoomControls();
@@ -152,9 +162,24 @@ function loadPersistentData() {
             const formData = JSON.parse(savedData);
             if (formData.workFront) {
                 const workFrontSelect = document.getElementById('work-front');
-                workFrontSelect.value = formData.workFront;
-                // Update the visible input field as well
-                elements.workFrontSearch.value = workFrontSelect.options[workFrontSelect.selectedIndex].text;
+                const savedWorkFront = formData.workFront;
+
+                // Check if the saved work front exists in the select options
+                const optionExists = Array.from(workFrontSelect.options).some(opt => opt.value === savedWorkFront);
+
+                if (optionExists) {
+                    // If it exists, select it normally
+                    workFrontSelect.value = savedWorkFront;
+                    elements.workFrontSearch.value = workFrontSelect.options[workFrontSelect.selectedIndex].text;
+                } else {
+                    // If it doesn't exist, it must be a custom "Otro" value
+                    workFrontSelect.value = 'otro';
+                    elements.workFrontSearch.value = savedWorkFront; // Show the custom value in the search box
+                    elements.otherWorkFrontInput.value = savedWorkFront; // Populate the custom input field
+                    elements.otherWorkFrontGroup.classList.remove('hidden'); // Show the custom input field
+                }
+                // Trigger change to ensure UI consistency
+                workFrontSelect.dispatchEvent(new Event('change'));
             }
             document.getElementById('coronation').value = formData.coronation || '';
             document.getElementById('observation-category').value = formData.observationCategory || '';
@@ -527,6 +552,22 @@ function attachEventListeners() {
     });
 
     elements.flashToggleBtn.addEventListener('click', toggleFlash);
+    
+    // Gallery event listeners
+    elements.galleryBtn.addEventListener('click', () => {
+        elements.galleryModal.classList.remove('hidden');
+        displayGalleryPhotos();
+    });
+    
+    elements.closeGalleryButton.addEventListener('click', () => {
+        elements.galleryModal.classList.add('hidden');
+    });
+    
+    window.addEventListener('click', (event) => {
+        if (event.target == elements.galleryModal) {
+            elements.galleryModal.classList.add('hidden');
+        }
+    });
 }
 
 // Function to cycle through flash modes
@@ -568,6 +609,180 @@ function updateFlashControl() {
     } else {
         icon.style.color = 'white';
     }
+}
+
+// Gallery functions
+
+// Save photo to gallery storage
+function savePhotoToGallery(imageData, metadata) {
+    if (!imageData) {
+        console.error('No image data to save to gallery');
+        return;
+    }
+
+    const photoId = 'gallery_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    const photoData = {
+        id: photoId,
+        imageData: imageData,
+        metadata: metadata,
+        timestamp: new Date().toISOString()
+    };
+
+    // Load existing gallery photos
+    let galleryPhotos = JSON.parse(localStorage.getItem('gdrCamGalleryPhotos') || '[]');
+    
+    // Add new photo
+    galleryPhotos.unshift(photoData); // Add to the beginning of the array
+    
+    // Save to localStorage (limit to 50 photos to prevent storage issues)
+    if (galleryPhotos.length > 50) {
+        galleryPhotos = galleryPhotos.slice(0, 50);
+    }
+    
+    localStorage.setItem('gdrCamGalleryPhotos', JSON.stringify(galleryPhotos));
+    
+    // Update app state
+    appState.galleryPhotos = galleryPhotos;
+    
+    console.log('Photo saved to gallery with ID:', photoId);
+}
+
+// Load gallery photos from localStorage
+function loadGalleryPhotos() {
+    const storedPhotos = localStorage.getItem('gdrCamGalleryPhotos');
+    if (storedPhotos) {
+        appState.galleryPhotos = JSON.parse(storedPhotos);
+    } else {
+        appState.galleryPhotos = [];
+    }
+    console.log('Gallery photos loaded:', appState.galleryPhotos.length);
+}
+
+// Display gallery photos
+function displayGalleryPhotos() {
+    if (!elements.galleryGrid) {
+        console.error('Gallery grid element not found');
+        return;
+    }
+
+    elements.galleryGrid.innerHTML = ''; // Clear existing content
+
+    if (appState.galleryPhotos.length === 0) {
+        const emptyMessage = document.createElement('div');
+        emptyMessage.className = 'gallery-empty-message';
+        emptyMessage.textContent = 'No hay fotos en la galería';
+        elements.galleryGrid.appendChild(emptyMessage);
+        return;
+    }
+
+    appState.galleryPhotos.forEach(photo => {
+        const galleryItem = document.createElement('div');
+        galleryItem.className = 'gallery-item';
+        galleryItem.dataset.photoId = photo.id;
+
+        const img = document.createElement('img');
+        img.src = photo.imageData;
+        img.alt = `Foto con metadatos - ${new Date(photo.timestamp).toLocaleString()}`;
+        
+        const actions = document.createElement('div');
+        actions.className = 'gallery-item-actions';
+        
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'view-btn';
+        viewBtn.textContent = 'Ver';
+        viewBtn.title = 'Ver detalles';
+        
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'save-btn';
+        saveBtn.textContent = 'Guardar';
+        saveBtn.title = 'Guardar en galería del dispositivo';
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.innerHTML = '&times;';
+        deleteBtn.title = 'Eliminar';
+        
+        // Add click events
+        galleryItem.addEventListener('click', () => viewGalleryPhoto(photo.id));
+        
+        viewBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            viewGalleryPhoto(photo.id);
+        });
+        
+        saveBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            saveGalleryPhoto(photo.id);
+        });
+        
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteGalleryPhoto(photo.id);
+        });
+        
+        actions.appendChild(viewBtn);
+        actions.appendChild(saveBtn);
+        actions.appendChild(deleteBtn);
+        
+        galleryItem.appendChild(img);
+        galleryItem.appendChild(actions);
+        
+        elements.galleryGrid.appendChild(galleryItem);
+    });
+}
+
+// View a specific gallery photo
+function viewGalleryPhoto(photoId) {
+    const photo = appState.galleryPhotos.find(p => p.id === photoId);
+    if (!photo) {
+        showStatus('Foto no encontrada en la galería', 'error');
+        return;
+    }
+
+    // Show the photo in a preview similar to the result section
+    elements.photoPreview.src = photo.imageData;
+    appState.photoWithMetadata = photo.imageData;
+    
+    // Switch to result section
+    elements.cameraSection.classList.add('hidden');
+    elements.formSection.classList.add('hidden');
+    elements.resultSection.classList.remove('hidden');
+    
+    // Close gallery modal
+    elements.galleryModal.classList.add('hidden');
+}
+
+// Save a gallery photo to device
+async function saveGalleryPhoto(photoId) {
+    const photo = appState.galleryPhotos.find(p => p.id === photoId);
+    if (!photo) {
+        showStatus('Foto no encontrada en la galería', 'error');
+        return;
+    }
+
+    // Apply timestamp and logo if needed
+    const imageToSave = await addTimestampAndLogoToImage(photo.imageData);
+    
+    // Call the existing save function
+    saveToGallery(imageToSave);
+}
+
+// Delete a photo from gallery
+function deleteGalleryPhoto(photoId) {
+    if (!confirm('¿Estás seguro de que deseas eliminar esta foto de la galería?')) {
+        return;
+    }
+
+    // Remove from array
+    appState.galleryPhotos = appState.galleryPhotos.filter(photo => photo.id !== photoId);
+    
+    // Update localStorage
+    localStorage.setItem('gdrCamGalleryPhotos', JSON.stringify(appState.galleryPhotos));
+    
+    // Update gallery display
+    displayGalleryPhotos();
+    
+    showStatus('Foto eliminada de la galería', 'success');
 }
 
 // Start camera function
@@ -1520,6 +1735,9 @@ async function addMetadataToImage(imageDataUrl, metadata) {
                 
                 // Automatically rotate the image 90 degrees to the left as requested
                 await rotateImage(-90);
+
+                // Save to gallery for future access
+                savePhotoToGallery(newImage, metadata);
 
                 // If the preview image is not correctly oriented for display, we may need to correct it specifically for the preview
                 // The image should already be corrected by drawTimestampAndLogoOnImage, but let's ensure preview shows correctly

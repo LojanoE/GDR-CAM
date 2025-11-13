@@ -1,141 +1,172 @@
 # GDR-CAM Project Context
 
 ## Project Overview
-GDR-CAM is a Progressive Web Application (PWA) designed for capturing photos with embedded metadata. The application allows users to take photos using their device's camera, fill out an observation form, and store all data as metadata within the photo. Key features include:
 
-- Photo capture with metadata embedding (EXIF data)
-- Form for recording work details (work front, coronation, observation type, activity performed)
-- GPS coordinates integration
-- Offline functionality through service workers
-- Responsive design for mobile, tablet, and desktop
-- Gallery saving capability (with special iOS support)
+GDR-CAM is a Progressive Web App (PWA) for capturing photos with embedded metadata. The application allows users to take photos using their device's camera, fill out an observation form, and save the photo with GPS coordinates and form data embedded as EXIF metadata. The app is designed to work offline and can be installed on mobile devices and PCs.
 
 ## Project Structure
+
 ```
 GDR-CAM/
-├── app.js                 # Main application logic
-├── exif.js                # EXIF metadata reading library
-├── piexif.js              # EXIF metadata writing library
-├── sw.js                  # Service worker for offline functionality
-├── index.html             # Main application page
-├── manifest.json          # PWA manifest configuration
-├── style.css              # Styling for the application
-├── README.md              # Project documentation
-├── GEMINI.md              # Additional documentation
-├── test_orientation.html  # Test page for orientation functionality
-├── img/                   # Images directory
-│   ├── ECUACORRIENTE.png  # Background image
-│   ├── icon-512x512.png   # App icon
-│   └── LOGO GDR.jpeg      # Logo image
-└── .gitattributes         # Git attributes configuration
+├── app.js                  # Main application logic
+├── index.html              # Main HTML interface
+├── style.css               # Application styles
+├── sw.js                   # Service worker for offline functionality
+├── manifest.json           # PWA manifest file
+├── exif.js                 # Library for reading EXIF data
+├── piexif.js               # Library for writing EXIF data
+├── frentes.json            # Work fronts data for form dropdown
+├── test_orientation.html   # Orientation testing page
+├── GEMINI.md               # Existing documentation
+├── README.md               # Project documentation
+├── .gitattributes          # Git attributes configuration
+├── img/                    # Image assets
+│   ├── ECUACORRIENTE.png
+│   ├── icon-512x512.png
+│   └── LOGO GDR.jpeg
+└── .git/                   # Git repository metadata
 ```
 
-## Core Technologies
-- **HTML5**: For structure and semantic markup
-- **CSS3**: For styling and responsive design
-- **JavaScript**: Core application logic
-- **getUserMedia API**: For camera access
-- **EXIF.js & piexif.js**: For metadata manipulation
-- **Service Workers**: For offline functionality
-- **Web App Manifest**: For PWA installation
+## Core Functionality
 
-## Key Features & Functionality
-
-### Camera Integration
-- Uses `navigator.mediaDevices.getUserMedia()` for camera access
-- Prioritizes rear-facing camera at highest resolution (4096x2160)
-- Falls back to front-facing camera if rear is unavailable
-- Supports zoom functionality with controls for zoom in/out
-
-### GPS Location
-- Uses `navigator.geolocation` with high accuracy enabled
-- Continuously monitors for improved location precision
-- Stores GPS coordinates in EXIF metadata with accuracy indicators
-- Includes altitude, heading, and speed if available
+### Camera Features
+- Access to device camera using `getUserMedia` API
+- Photo capture functionality
+- Zoom controls (with support detection)
+- Flash mode cycling (auto, on, off)
+- Image rotation controls (90° left/right)
 
 ### Metadata Embedding
-- Embeds form data as UserComment in EXIF metadata
-- Stores GPS coordinates as standard EXIF GPS data
-- Includes timestamp and date information
-- Uses piexif.js for EXIF data manipulation
+- GPS location data (coordinates, altitude, accuracy)
+- Form data from user input (work front, coronation, observation category, activity performed)
+- Timestamp information
+- All metadata stored in EXIF format within image files
 
-### Image Processing
-- Corrects image orientation based on EXIF data
-- Supports image rotation (left/right) while preserving metadata
-- Adds timestamp and logo to saved images
-- Supports zoom functionality during capture
+### Form Functionality
+- Work front selection with searchable dropdown
+- Custom work front option
+- Coronation selection (C945, C960, C970, C980)
+- Observation category (routine, release, novelty, important)
+- Activity performed text input
+- GPS coordinate display
 
-### Offline Functionality
-- Implemented with service worker (sw.js)
-- Caches static assets for offline access
-- Implements cache-first strategy for static resources
-- Network-first strategy with fallback for navigation
-
-### PWA Features
-- Web App Manifest for installation
-- Service worker for offline functionality
-- Responsive design for all device sizes
-- Locks screen orientation to portrait mode
-
-## Application Flow
-1. Automatically starts camera on page load
-2. Acquires GPS location with high accuracy
-3. User captures photo using camera interface
-4. Form appears for data entry (work front, coronation, etc.)
-5. User can view captured photo and rotate if needed
-6. Metadata is embedded in the photo EXIF data
-7. User can save photo to device gallery
-
-## Key Files & Components
-
-### app.js
-Main application file containing:
-- Camera initialization and control
-- GPS location acquisition
-- Form handling and validation
-- Image processing and metadata embedding
-- UI state management
-
-### sw.js
-Service worker implementing:
-- Cache strategies for static assets
-- Offline functionality
+### Offline Capabilities
+- Service worker implementation for offline access
+- Static asset caching (cache-first strategy)
+- Navigation handling with network-first approach
 - Runtime caching for dynamic content
 
+### PWA Features
+- Installable on mobile and desktop platforms
+- Full-screen standalone display
+- Custom app icons and splash screens
+- Portrait orientation lock
+
+## Key Technologies
+
+- **Frontend:** HTML5, CSS3, JavaScript (ES6+)
+- **Camera API:** `getUserMedia` and `ImageCapture`
+- **PWA:** Service Workers, Web App Manifest
+- **Metadata:** `exif.js` and `piexif.js` libraries
+- **GPS:** Geolocation API
+- **Device Orientation:** Screen Orientation API
+- **Styling:** CSS variables, flexbox, responsive design
+
+## Application Logic (app.js)
+
+The main application uses a state-based architecture with a global `appState` object to manage:
+
+- Camera stream and capture state
+- Image rotation and zoom levels
+- GPS location tracking
+- Form data persistence (local storage)
+- Photo metadata processing
+
+Key functions include:
+- `startCamera()` - Initialize camera access
+- `takePhoto()` - Capture and process images
+- `addMetadataToImage()` - Embed form and GPS data
+- `saveToGallery()` - Save processed image to device
+- `rotateImage()` - Rotate the captured image
+- `getLocation()` - Get and watch GPS coordinates
+
+## Configuration Files
+
 ### manifest.json
-PWA configuration with:
-- App name, description, and icons
-- Display settings (standalone)
-- Theme colors
-- Orientation lock
+- App name: "GDR-CAM - Aplicación de Captura de Fotos"
+- Short name: "GDR-CAM"
+- Display mode: standalone
+- Theme color: #007bff
+- Background color: #1A2230
+- Portrait orientation requirement
 
-### style.css
-Styling system with:
-- CSS variables for consistent theming
-- Responsive design for all screen sizes
-- Custom styling for camera interface
-- Form and result display styling
+### sw.js
+- Cache versioning with cache names including version numbers
+- Static asset caching strategy
+- Runtime caching for dynamic content
+- Cleanup of old caches during activation
 
-## Development Conventions
-- Uses ES6+ JavaScript features
-- Modular approach with clear function separation
-- Error handling for camera and location permissions
-- Asynchronous operations with Promises and async/await
-- Responsive design principles
+### frentes.json
+- Array of predefined work fronts for the dropdown
+- Dynamically loaded and populated in the form
 
 ## Building and Running
-The application is a client-side web application that requires no build process:
 
-1. Simply open `index.html` in a modern browser
-2. The application will automatically register the service worker
-3. Camera access and location services will be requested on first use
+This is a client-side web application that requires a local web server to run properly due to browser security restrictions for camera access and service workers.
 
-For development:
-- Modify HTML, CSS, or JavaScript files directly
-- Test functionality using modern browsers
-- Use `test_orientation.html` for orientation testing
+### Local Development
+1. Start a local web server:
+   ```bash
+   # Python 3
+   python -m http.server 8000
+   
+   # Or using Node.js 'serve' package
+   npx serve
+   ```
+   
+2. Access the application at `http://localhost:8000`
 
-## Testing
-- The project includes a test page (`test_orientation.html`) for orientation functionality
-- All functionality can be tested through the main UI
-- Service worker behavior can be observed in browser dev tools
+### Requirements
+- Secure context (https or localhost) for camera and service worker APIs
+- Modern browser with Web APIs support (getUserMedia, Service Worker, Screen Orientation)
+- Camera access permissions enabled by user
+
+## Development Conventions
+
+- Procedural JavaScript with global state management
+- Event-driven architecture for UI interactions
+- Form data persistence using localStorage
+- Responsive UI with CSS flexbox
+- Consistent color scheme using CSS variables
+- Error handling with user notifications
+- GPS coordinates stored in EXIF format with decimal degrees calculation
+
+## Special Features
+
+- Automatic GPS coordinate watching during form filling
+- Best GPS reading selection based on accuracy
+- GPS display throttling to prevent UI flickering
+- Form interaction detection to pause background updates
+- Searchable custom dropdown for work fronts
+- Image rotation with EXIF orientation preservation
+- Metadata display modal for viewing embedded data
+- Custom logo and branding throughout the application
+- Version tracking in multiple places (UI and service worker)
+
+## Compatibility
+
+- Chrome 50+
+- Firefox 54+
+- Edge 79+
+- Safari 11.1+
+- iOS Safari 11.3+
+- Mobile and desktop platforms
+- Works offline after initial installation
+
+## Files and Assets
+
+- Images are stored in the `img/` directory with appropriate sizing for PWA icons
+- EXIF libraries are included directly in the project
+- CSS uses a modern, clean design with consistent color scheme
+- HTML structure follows semantic web practices
+- External dependencies are minimized to essential libraries only
