@@ -46,6 +46,8 @@ const elements = {
     otherWorkFrontGroup: null, // For the custom work front input
     otherWorkFrontInput: null,
     flashToggleBtn: null,
+    workFrontSearch: null, // For the work front search input
+    workFrontOptions: null, // For the custom dropdown options container
     flashModeText: null,
 };
 
@@ -73,6 +75,8 @@ function init() {
     elements.otherWorkFrontGroup = document.getElementById('other-work-front-group');
     elements.otherWorkFrontInput = document.getElementById('other-work-front');
     elements.flashToggleBtn = document.getElementById('flash-toggle');
+    elements.workFrontSearch = document.getElementById('work-front-search');
+    elements.workFrontOptions = document.getElementById('work-front-options');
     elements.flashModeText = document.getElementById('flash-mode-text');
     
     // Load dynamic and persistent data
@@ -132,6 +136,8 @@ async function loadWorkFronts() {
             workFrontSelect.insertBefore(option, otherOption);
         });
 
+        // After loading, populate the custom searchable dropdown
+        populateWorkFrontOptions();
     } catch (error) {
         console.error('Could not load work fronts:', error);
         showStatus('Error al cargar la lista de frentes de trabajo.', 'error');
@@ -144,7 +150,12 @@ function loadPersistentData() {
         const savedData = localStorage.getItem('gdrCamFormData');
         if (savedData) {
             const formData = JSON.parse(savedData);
-            document.getElementById('work-front').value = formData.workFront || '';
+            if (formData.workFront) {
+                const workFrontSelect = document.getElementById('work-front');
+                workFrontSelect.value = formData.workFront;
+                // Update the visible input field as well
+                elements.workFrontSearch.value = workFrontSelect.options[workFrontSelect.selectedIndex].text;
+            }
             document.getElementById('coronation').value = formData.coronation || '';
             document.getElementById('observation-category').value = formData.observationCategory || '';
             document.getElementById('activity-performed').value = formData.activityPerformed || '';
@@ -287,7 +298,7 @@ function attachEventListeners() {
     elements.zoomInBtn.addEventListener('click', zoomIn);
     elements.zoomOutBtn.addEventListener('click', zoomOut);
     elements.saveMetadataBtn.addEventListener('click', handleSaveMetadata);
-    
+
     // Event listener for the work front dropdown
     const workFrontSelect = document.getElementById('work-front');
     workFrontSelect.addEventListener('change', () => {
@@ -297,6 +308,38 @@ function attachEventListeners() {
             elements.otherWorkFrontGroup.classList.add('hidden');
         }
     });
+
+    // --- New Searchable Select Logic ---
+    elements.workFrontSearch.addEventListener('input', () => {
+        const searchTerm = elements.workFrontSearch.value.toLowerCase();
+        const options = elements.workFrontOptions.getElementsByClassName('option');
+        let hasVisibleOptions = false;
+        for (let option of options) {
+            const optionText = option.textContent.toLowerCase();
+            const isVisible = optionText.includes(searchTerm);
+            option.classList.toggle('hidden', !isVisible);
+            if (isVisible) hasVisibleOptions = true;
+        }
+        elements.workFrontOptions.classList.toggle('hidden', !hasVisibleOptions);
+    });
+
+    elements.workFrontSearch.addEventListener('focus', () => {
+        elements.workFrontOptions.classList.remove('hidden');
+        // Show all options on focus
+        const options = elements.workFrontOptions.getElementsByClassName('option');
+        for (let option of options) {
+            option.classList.remove('hidden');
+        }
+    });
+
+    // Hide dropdown if clicked outside
+    document.addEventListener('click', (e) => {
+        const searchableSelect = e.target.closest('.searchable-select');
+        if (!searchableSelect) {
+            elements.workFrontOptions.classList.add('hidden');
+        }
+    });
+    // --- End New Searchable Select Logic ---
 
     // Add event listeners to form inputs to prevent background updates from interfering
     const formInputs = document.querySelectorAll('#form-section select, #form-section input, #form-section textarea');
@@ -1569,6 +1612,10 @@ function newCapture() {
     // Ocultar el campo de texto "Otro" si estaba visible
     elements.otherWorkFrontGroup.classList.add('hidden');
     elements.otherWorkFrontInput.value = '';
+
+    // Reset work front search
+    elements.workFrontSearch.value = '';
+    document.getElementById('work-front').value = '';
     
     // Restore download button text if it was changed
     if (elements.downloadPhotoBtn.innerHTML.includes('Guardando...') || 
@@ -1630,6 +1677,38 @@ function restartCamera() {
     
     // Attempt to start camera again
     startCamera();
+}
+
+// --- New function to populate the custom searchable dropdown ---
+function populateWorkFrontOptions() {
+    const workFrontSelect = document.getElementById('work-front');
+    elements.workFrontOptions.innerHTML = ''; // Clear existing options
+
+    for (let i = 0; i < workFrontSelect.options.length; i++) {
+        const originalOption = workFrontSelect.options[i];
+        if (originalOption.value === "") continue; // Skip placeholder
+
+        const optionDiv = document.createElement('div');
+        optionDiv.classList.add('option');
+        optionDiv.textContent = originalOption.textContent;
+        optionDiv.dataset.value = originalOption.value;
+
+        optionDiv.addEventListener('click', () => {
+            // Set the value of the hidden select
+            workFrontSelect.value = originalOption.value;
+
+            // Set the text of the search input
+            elements.workFrontSearch.value = originalOption.textContent;
+
+            // Hide the options list
+            elements.workFrontOptions.classList.add('hidden');
+
+            // Trigger change event for 'otro' logic
+            workFrontSelect.dispatchEvent(new Event('change'));
+        });
+
+        elements.workFrontOptions.appendChild(optionDiv);
+    }
 }
 
 

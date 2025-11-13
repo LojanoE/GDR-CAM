@@ -19,7 +19,7 @@
     <div class="container-fluid">
         <header class="header">
             <img src="img/LOGO GDR.jpeg" alt="GDR Logo" class="logo">
-            <h1>GDR-CAM-V68.4.4</h1>
+            <h1>GDR-CAM-V68.5.0</h1>
         </header>
         
         <main class="main-content">
@@ -43,11 +43,15 @@
                     <h2>Formulario de Observación</h2>
                     
                     <div class="form-group">
-                        <label for="work-front">Frente de Trabajo:</label>
-                        <select id="work-front" required>
-                            <option value="">Seleccione una opción</option>
-                            <option value="otro">Otro</option>
-                        </select>
+                        <label for="work-front-search">Frente de Trabajo:</label>
+                        <div class="searchable-select">
+                            <input type="text" id="work-front-search" placeholder="Buscar o seleccionar frente..." autocomplete="off">
+                            <div id="work-front-options" class="searchable-options hidden"></div>
+                            <select id="work-front" required class="hidden">
+                                <option value="">Seleccione una opción</option>
+                                <option value="otro">Otro</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div class="form-group hidden" id="other-work-front-group">
