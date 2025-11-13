@@ -152,9 +152,18 @@ function loadPersistentData() {
             const formData = JSON.parse(savedData);
             if (formData.workFront) {
                 const workFrontSelect = document.getElementById('work-front');
-                workFrontSelect.value = formData.workFront;
-                // Update the visible input field as well
-                elements.workFrontSearch.value = workFrontSelect.options[workFrontSelect.selectedIndex].text;
+                const optionExists = Array.from(workFrontSelect.options).some(opt => opt.value === formData.workFront);
+
+                if (optionExists) {
+                    workFrontSelect.value = formData.workFront;
+                    elements.workFrontSearch.value = workFrontSelect.options[workFrontSelect.selectedIndex].text;
+                } else {
+                    // Handle custom work front
+                    workFrontSelect.value = 'otro';
+                    elements.otherWorkFrontGroup.classList.remove('hidden');
+                    elements.otherWorkFrontInput.value = formData.workFront;
+                    elements.workFrontSearch.value = formData.workFront;
+                }
             }
             document.getElementById('coronation').value = formData.coronation || '';
             document.getElementById('observation-category').value = formData.observationCategory || '';
@@ -572,6 +581,12 @@ function updateFlashControl() {
 
 // Start camera function
 async function startCamera() {
+    // If permission was already explicitly denied, don't ask again.
+    if (appState.permissionDenied) {
+        showStatus('El permiso de la cámara fue denegado. Habilítelo en la configuración del navegador.', 'error');
+        return;
+    }
+
     // --- Nueva Lógica de Permisos ---
     // Primero, verificar el estado del permiso de la cámara usando la API de Permisos.
     if (navigator.permissions && navigator.permissions.query) {
@@ -1656,7 +1671,6 @@ function newCapture() {
     appState.imageRotation = 0;
     appState.originalPhotoWithMetadata = null;
     // Limpiar los datos de la foto anterior para liberar memoria
-    appState.permissionDenied = false; // Permitir intentar de nuevo al iniciar nueva captura
     appState.capturedPhotoDataUrl = null;
     appState.photoWithMetadata = null;
     elements.photoPreview.src = ''; // Limpiar la vista previa de la imagen
