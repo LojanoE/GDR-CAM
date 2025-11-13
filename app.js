@@ -572,10 +572,30 @@ function updateFlashControl() {
 
 // Start camera function
 async function startCamera() {
-    // Si el permiso fue denegado previamente, no intentar de nuevo.
-    if (appState.permissionDenied) {
-        showStatus('El permiso de la cámara fue denegado. Habilítelo en la configuración de su navegador.', 'error');
-        return;
+    // --- Nueva Lógica de Permisos ---
+    // Primero, verificar el estado del permiso de la cámara usando la API de Permisos.
+    if (navigator.permissions && navigator.permissions.query) {
+        try {
+            const permissionStatus = await navigator.permissions.query({ name: 'camera' });
+            if (permissionStatus.state === 'denied') {
+                // Si el permiso fue denegado explícitamente, no preguntar de nuevo.
+                appState.permissionDenied = true;
+                showStatus('El permiso de la cámara fue denegado. Habilítelo en la configuración del navegador.', 'error');
+                return;
+            }
+            // Si es 'granted' o 'prompt', continuamos. La llamada a getUserMedia se encargará de preguntar si es 'prompt'.
+
+            // Escuchar cambios en el estado del permiso.
+            permissionStatus.onchange = () => {
+                if (permissionStatus.state === 'denied') {
+                    appState.permissionDenied = true;
+                    // Si el usuario lo deniega mientras la app está activa.
+                    showStatus('Permiso de cámara revocado. Recargue la página si desea usarla.', 'error');
+                }
+            };
+        } catch (error) {
+            console.warn('La API de Permisos no está disponible para "camera". Se procederá con el método anterior.', error);
+        }
     }
 
     try {
@@ -710,75 +730,82 @@ async function initializeCameraCapabilities(track) {
 // Attempt to get current location with enhanced precision and start watching for better readings
 function getCurrentLocation() {
     return new Promise((resolve, reject) => {
-        const gpsDisplay = document.getElementById('gps-coords');
-        if (navigator.geolocation) {
-            // Use more optimistic timeout settings to allow for more accurate GPS fix
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    // Store all available GPS data for higher precision
-                    appState.currentLocation = {
-                        latitude: position.coords.latitude,
-                        longitude: position.coords.longitude,
-                        accuracy: position.coords.accuracy,                    // Accuracy in meters
-                        altitude: position.coords.altitude,                    // Altitude in meters
-                        altitudeAccuracy: position.coords.altitudeAccuracy,    // Altitude accuracy in meters
-                        heading: position.coords.heading,                      // Heading in degrees
-                        speed: position.coords.speed,                          // Speed in meters/second
-                        timestamp: position.timestamp                          // Timestamp of location fix
-                    };
-                    // Initialize best location with the first reading
-                    appState.bestLocation = {...appState.currentLocation};
-                    console.log('Initial location obtained:', appState.currentLocation);
-                    showStatus(`Ubicación obtenida. Precisión: ±${Math.round(appState.currentLocation.accuracy)}m. Puede tomar una foto.`, 'success');
-                    // Display coordinates with higher precision (7 decimal places for better accuracy)
-                    gpsDisplay.value = `${position.coords.latitude.toFixed(7)}, ${position.coords.longitude.toFixed(7)}`;
-                    elements.takePhotoBtn.disabled = false; // Enable photo taking
-                    
-                    // Update zoom controls after camera is fully started
-                    setTimeout(() => {
-                        updateZoomControls();
-                    }, 500); // Small delay to ensure everything is ready
-                    
-                    // Start watching for more precise locations after the initial fix
-                    startLocationWatching(gpsDisplay);
-                    
-                    resolve(position);
-                },
-                (error) => {
-                    let errorMessage = '';
-                    switch(error.code) {
-                        case error.PERMISSION_DENIED:
-                            errorMessage = 'Permiso denegado para acceder a la geolocalización.';
-                            break;
-                        case error.POSITION_UNAVAILABLE:
-                            errorMessage = 'La información de ubicación no está disponible.';
-                            break;
-                        case error.TIMEOUT:
-                            errorMessage = 'La solicitud para obtener la ubicación ha expirado.';
-                            break;
-                        case error.UNKNOWN_ERROR:
-                        default:
-                            errorMessage = 'Ocurrió un error desconocido al obtener la ubicación.';
-                            break;
-                    }
-                    console.warn('Could not obtain initial location:', error.message);
-                    showStatus(errorMessage + ' Puede tomar la foto sin datos de GPS.', 'error');
-                    gpsDisplay.value = 'No se pudo obtener la ubicación.';
-                    elements.takePhotoBtn.disabled = false; // Enable photo taking anyway
-                    resolve(null); // Still resolve the promise to continue app flow
-                },
-                {
-                    enableHighAccuracy: true,  // Enable GPS for highest accuracy
-                    timeout: 20000,            // Longer timeout to allow for better GPS fix
-                    maximumAge: 300000         // Accept cached location up to 5 minutes old
+        const requestLocation = () => {
+            const gpsDisplay = document.getElementById('gps-coords');
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        appState.currentLocation = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy: position.coords.accuracy,
+                            altitude: position.coords.altitude,
+                            altitudeAccuracy: position.coords.altitudeAccuracy,
+                            heading: position.coords.heading,
+                            speed: position.coords.speed,
+                            timestamp: position.timestamp
+                        };
+                        appState.bestLocation = {...appState.currentLocation};
+                        console.log('Initial location obtained:', appState.currentLocation);
+                        showStatus(`Ubicación obtenida. Precisión: ±${Math.round(appState.currentLocation.accuracy)}m. Puede tomar una foto.`, 'success');
+                        gpsDisplay.value = `${position.coords.latitude.toFixed(7)}, ${position.coords.longitude.toFixed(7)}`;
+                        elements.takePhotoBtn.disabled = false;
+                        
+                        setTimeout(() => updateZoomControls(), 500);
+                        startLocationWatching(gpsDisplay);
+                        resolve(position);
+                    },
+                    (error) => {
+                        let errorMessage = '';
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage = 'Permiso denegado para acceder a la geolocalización.';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage = 'La información de ubicación no está disponible.';
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage = 'La solicitud para obtener la ubicación ha expirado.';
+                                break;
+                            default:
+                                errorMessage = 'Ocurrió un error desconocido al obtener la ubicación.';
+                                break;
+                        }
+                        console.warn('Could not obtain initial location:', error.message);
+                        showStatus(errorMessage + ' Puede tomar la foto sin datos de GPS.', 'error');
+                        gpsDisplay.value = 'No se pudo obtener la ubicación.';
+                        elements.takePhotoBtn.disabled = false;
+                        resolve(null);
+                    },
+                    { enableHighAccuracy: true, timeout: 20000, maximumAge: 300000 }
+                );
+            } else {
+                console.warn('Geolocation not supported');
+                showStatus('La geolocalización no es compatible con este navegador', 'error');
+                gpsDisplay.value = 'Geolocalización no soportada.';
+                elements.takePhotoBtn.disabled = false;
+                resolve(null);
+            }
+        };
+
+        // --- Nueva Lógica de Permisos para GPS ---
+        if (navigator.permissions && navigator.permissions.query) {
+            navigator.permissions.query({ name: 'geolocation' }).then(permissionStatus => {
+                if (permissionStatus.state === 'denied') {
+                    showStatus('Permiso de GPS denegado. Habilítelo en la configuración del navegador.', 'error');
+                    document.getElementById('gps-coords').value = 'Permiso de GPS denegado.';
+                    elements.takePhotoBtn.disabled = false; // Permitir tomar foto sin GPS
+                    resolve(null);
+                } else {
+                    // Si es 'granted' o 'prompt', procedemos a solicitar la ubicación.
+                    requestLocation();
                 }
-            );
+            }).catch(error => {
+                console.warn('La API de Permisos no está disponible para "geolocation". Se procederá con el método anterior.', error);
+                requestLocation(); // Fallback al comportamiento original
+            });
         } else {
-            console.warn('Geolocation not supported');
-            showStatus('La geolocalización no es compatible con este navegador', 'error');
-            gpsDisplay.value = 'Geolocalización no soportada.';
-            elements.takePhotoBtn.disabled = false; // Enable photo taking anyway
-            resolve(null); // Resolve the promise since geolocation isn't supported
+            requestLocation(); // Fallback si la API de Permisos no existe
         }
     });
 }
@@ -999,7 +1026,7 @@ async function takePhoto() {
                     image.onload = async () => { 
                         await processImage(image);
                         URL.revokeObjectURL(objectURL);
-                    };
+                    }
                 }).catch(err2 => {
                     console.error('Error taking photo on fallback attempt:', err2);
                     showStatus('Error crítico al tomar la foto.', 'error');
