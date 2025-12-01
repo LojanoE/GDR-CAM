@@ -87,6 +87,9 @@ function init() {
         
         // Ensure DOM is ready and start camera automatically
         // The camera is now triggered by user interaction, so no auto-start.
+        if (elements.cameraSection && !elements.cameraSection.classList.contains('hidden')) {
+            startCamera();
+        }
     });
 }
 
@@ -653,57 +656,57 @@ function cropToAspectRatio(imageDataUrl) {
 
 // Take photo
 function takePhoto() {
-    // Create a file input element programmatically
-    const captureInput = document.createElement('input');
-    captureInput.type = 'file';
-    captureInput.accept = 'image/*';
-    captureInput.capture = 'environment'; // Prefer the rear camera
+    if (!elements.video.srcObject) {
+        showStatus('La cámara no está activa.', 'error');
+        return;
+    }
 
-    // Listen for when a file is selected
-    captureInput.addEventListener('change', async (event) => {
-        const file = event.target.files[0];
-        if (!file) {
-            return; // User cancelled the camera
+    // Show processing state
+    elements.takePhotoBtn.disabled = true;
+    elements.takePhotoBtn.innerHTML = '<span class="loading"></span> Procesando...';
+
+    // Set canvas dimensions to match video stream
+    const videoTrack = elements.video.srcObject.getVideoTracks()[0];
+    const settings = videoTrack.getSettings();
+    elements.canvas.width = settings.width;
+    elements.canvas.height = settings.height;
+
+    // Draw the current video frame to the canvas
+    const ctx = elements.canvas.getContext('2d');
+    ctx.drawImage(elements.video, 0, 0, elements.canvas.width, elements.canvas.height);
+
+    // Get the image data URL from the canvas
+    const imageDataUrl = elements.canvas.toDataURL('image/jpeg', 0.96);
+
+    // Stop the camera stream
+    stopCamera();
+
+    // Process the image (orientation correction and cropping)
+    (async () => {
+        try {
+            const correctedImageDataUrl = await correctImageOrientation(imageDataUrl);
+            const croppedImageDataUrl = await cropToAspectRatio(correctedImageDataUrl);
+            appState.capturedPhotoDataUrl = croppedImageDataUrl;
+        } catch (error) {
+            console.error('Error al procesar la imagen:', error);
+            showStatus('Error al procesar la imagen. Intente de nuevo.', 'error');
+            appState.capturedPhotoDataUrl = imageDataUrl; // Use uncorrected on error
         }
 
-        // Show processing state
-        elements.takePhotoBtn.disabled = true;
-        elements.takePhotoBtn.innerHTML = '<span class="loading"></span> Procesando...';
+        // Hide camera section and show form
+        elements.cameraSection.classList.add('hidden');
+        elements.formSection.classList.remove('hidden');
 
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            let imageDataUrl = e.target.result;
+        // Restore button state
+        elements.takePhotoBtn.innerHTML = 'Tomar Foto';
+        elements.takePhotoBtn.disabled = false;
 
-            // Correct orientation and crop the image
-            try {
-                imageDataUrl = await correctImageOrientation(imageDataUrl);
-                const croppedImageDataUrl = await cropToAspectRatio(imageDataUrl);
-                appState.capturedPhotoDataUrl = croppedImageDataUrl;
-            } catch (error) {
-                console.error('Error al procesar la imagen:', error);
-                showStatus('Error al procesar la imagen. Intente de nuevo.', 'error');
-                appState.capturedPhotoDataUrl = imageDataUrl; // Use uncorrected on error
-            }
-
-            // Hide camera section and show form
-            elements.cameraSection.classList.add('hidden');
-            elements.formSection.classList.remove('hidden');
-
-            // Restore button state
-            elements.takePhotoBtn.innerHTML = 'Tomar Foto';
-            elements.takePhotoBtn.disabled = false;
-
-            // Update GPS display with the best location found
-            if (appState.bestLocation) {
-                const gpsDisplay = document.getElementById('gps-coords');
-                gpsDisplay.value = `${appState.bestLocation.latitude.toFixed(7)}, ${appState.bestLocation.longitude.toFixed(7)} (±${Math.round(appState.bestLocation.accuracy)}m)`;
-            }
-        };
-        reader.readAsDataURL(file);
-    });
-
-    // Trigger the file input to open the camera
-    captureInput.click();
+        // Update GPS display with the best location found
+        if (appState.bestLocation) {
+            const gpsDisplay = document.getElementById('gps-coords');
+            gpsDisplay.value = `${appState.bestLocation.latitude.toFixed(7)}, ${appState.bestLocation.longitude.toFixed(7)} (±${Math.round(appState.bestLocation.accuracy)}m)`;
+        }
+    })();
 }
 
 // Handle save metadata
@@ -1306,11 +1309,46 @@ function newCapture() {
     document.getElementById('work-front').value = '';
 
     // Simply reload the page to reset the state completely
-    // This is the simplest way to ensure a clean start.
-    window.location.reload();
+    startCamera();
 }
 
 // Enhanced function to restart camera with better error handling
+
+// Function to start the camera stream
+async function startCamera() {
+    try {
+        const constraints = {
+            video: {
+                facingMode: 'environment', // Prefer rear camera
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
+            }
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        elements.video.srcObject = stream;
+        elements.takePhotoBtn.disabled = false;
+        showStatus('Cámara lista.', 'info');
+    } catch (error) {
+        console.error('Error al acceder a la cámara:', error);
+        let message = 'Error al acceder a la cámara. ';
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+            message += 'Permiso denegado. Por favor, habilite el acceso a la cámara en la configuración de su navegador.';
+            appState.permissionDenied = true;
+        } else {
+            message += 'Asegúrese de que la cámara no esté siendo utilizada por otra aplicación.';
+        }
+        showStatus(message, 'error');
+        elements.takePhotoBtn.disabled = true;
+    }
+}
+
+// Function to stop the camera stream
+function stopCamera() {
+    if (elements.video.srcObject) {
+        elements.video.srcObject.getTracks().forEach(track => track.stop());
+        elements.video.srcObject = null;
+    }
+}
 
 // --- New function to populate the custom searchable dropdown ---
 function populateWorkFrontOptions() {
