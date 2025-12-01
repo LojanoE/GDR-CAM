@@ -2,17 +2,26 @@
 
 // Application state
 const appState = {
+    stream: null,
+    imageCapture: null,
     capturedPhotoDataUrl: null,
     photoWithMetadata: null,
     currentLocation: null,
     bestLocation: null, // Track the best GPS reading found so far
     locationWatcher: null, // Store the GPS watcher ID
+    isCameraActive: false,
     imageRotation: 0, // Track current rotation angle
     permissionDenied: false, // Track if camera permission was denied
     originalPhotoWithMetadata: null, // Store the original image for rotation operations
+    currentZoom: 1.0, // Current zoom level
+    maxZoom: 1.0, // Maximum available zoom level
+    zoomSupported: false, // Whether zoom is supported by the camera
     isGpsDisplayThrottled: false, // Flag to throttle GPS display updates
     gpsDisplayThrottleTime: 5000, // Throttle GPS display updates to every 5 seconds
     isFormInteractionActive: false, // Flag to pause background updates during form interaction
+    flashModes: ['auto', 'flash', 'off'], // Available flash modes
+    currentFlashIndex: 0, // Current flash mode index
+    flashSupported: false // Whether flash is supported by the camera
 };
 
 // DOM Elements
@@ -20,6 +29,9 @@ const elements = {
     video: null,
     canvas: null,
     takePhotoBtn: null,
+    zoomInBtn: null,
+    zoomOutBtn: null,
+    zoomLevelDisplay: null,
     formSection: null,
     resultSection: null,
     photoPreview: null,
@@ -33,8 +45,10 @@ const elements = {
     rotateRightBtn: null,
     otherWorkFrontGroup: null, // For the custom work front input
     otherWorkFrontInput: null,
+    flashToggleBtn: null,
     workFrontSearch: null, // For the work front search input
     workFrontOptions: null, // For the custom dropdown options container
+    flashModeText: null,
 };
 
 // Initialize the application
@@ -42,6 +56,7 @@ function init() {
     // Get DOM elements
     elements.video = document.getElementById('video');
     elements.canvas = document.getElementById('canvas');
+    elements.startCameraBtn = document.getElementById('start-camera');
     elements.takePhotoBtn = document.getElementById('take-photo');
     elements.formSection = document.getElementById('form-section');
     elements.resultSection = document.getElementById('result-section');
@@ -54,17 +69,22 @@ function init() {
     elements.saveWithoutFormBtn = document.getElementById('save-photo-without-form');
     elements.rotateLeftBtn = document.getElementById('rotate-left');
     elements.rotateRightBtn = document.getElementById('rotate-right');
+    elements.zoomInBtn = document.getElementById('zoom-in');
+    elements.zoomOutBtn = document.getElementById('zoom-out');
+    elements.zoomLevelDisplay = document.getElementById('zoom-level');
     elements.otherWorkFrontGroup = document.getElementById('other-work-front-group');
     elements.otherWorkFrontInput = document.getElementById('other-work-front');
+    elements.flashToggleBtn = document.getElementById('flash-toggle');
     elements.workFrontSearch = document.getElementById('work-front-search');
     elements.workFrontOptions = document.getElementById('work-front-options');
+    elements.flashModeText = document.getElementById('flash-mode-text');
     
     // Load dynamic and persistent data
     loadWorkFronts();
     loadPersistentData();
     
-    // Get location as soon as the app loads
-    getCurrentLocation();
+    // Initialize zoom controls
+    initializeZoomControls();
     
     // Attach event listeners
     attachEventListeners();
@@ -86,9 +106,12 @@ function init() {
         lockScreenOrientation();
         
         // Ensure DOM is ready and start camera automatically
-        // The camera is now triggered by user interaction, so no auto-start.
-        if (elements.cameraSection && !elements.cameraSection.classList.contains('hidden')) {
-            startCamera();
+        if (document.readyState === 'complete') {
+            autoStartCamera();
+        } else {
+            window.addEventListener('DOMContentLoaded', () => {
+                autoStartCamera();
+            });
         }
     });
 }
@@ -188,9 +211,101 @@ function unlockScreenOrientation() {
     }
 }
 
+// Function to initialize zoom controls
+function initializeZoomControls() {
+    // Initially disable zoom controls until camera is active
+    if (elements.zoomInBtn) elements.zoomInBtn.disabled = true;
+    if (elements.zoomOutBtn) elements.zoomOutBtn.disabled = true;
+    
+    // Update zoom display
+    if (elements.zoomLevelDisplay) {
+        elements.zoomLevelDisplay.textContent = `${appState.currentZoom.toFixed(1)}x`;
+    }
+}
+
+// Function to update zoom controls state based on zoom support and current zoom level
+function updateZoomControls() {
+    if (!appState.zoomSupported) {
+        if (elements.zoomInBtn) elements.zoomInBtn.disabled = true;
+        if (elements.zoomOutBtn) elements.zoomOutBtn.disabled = true;
+        return;
+    }
+    
+    if (elements.zoomInBtn) elements.zoomInBtn.disabled = appState.stream === null;
+    if (elements.zoomOutBtn) elements.zoomOutBtn.disabled = appState.stream === null;
+    
+    // Disable zoom in if at max zoom level
+    if (elements.zoomInBtn) {
+        elements.zoomInBtn.disabled = (appState.currentZoom >= appState.maxZoom) || (appState.stream === null);
+    }
+    
+    // Disable zoom out if at minimum zoom level (1.0)
+    if (elements.zoomOutBtn) {
+        elements.zoomOutBtn.disabled = (appState.currentZoom <= 1.0) || (appState.stream === null);
+    }
+    
+    // Update zoom display
+    if (elements.zoomLevelDisplay) {
+        elements.zoomLevelDisplay.textContent = `${appState.currentZoom.toFixed(1)}x`;
+    }
+}
+
+// Function to apply zoom to the camera
+async function applyZoom(zoomFactor) {
+    if (!appState.stream || !appState.zoomSupported) {
+        return;
+    }
+    
+    // Clamp zoom factor between 1.0 and max zoom
+    const targetZoom = Math.max(1.0, Math.min(zoomFactor, appState.maxZoom));
+    
+    try {
+        const track = appState.stream.getVideoTracks()[0];
+        if (track && track.applyConstraints) {
+            await track.applyConstraints({
+                advanced: [{ zoom: targetZoom }]
+            });
+            
+            // Update state
+            appState.currentZoom = targetZoom;
+            console.log(`Zoom applied: ${targetZoom}x`);
+            
+            // Update UI
+            updateZoomControls();
+        }
+    } catch (error) {
+        console.warn('Could not apply zoom constraints:', error.message);
+        // Fallback: just update the state without applying to the camera
+        appState.currentZoom = targetZoom;
+        updateZoomControls();
+    }
+}
+
+// Zoom in function
+function zoomIn() {
+    const zoomIncrement = 0.5;
+    const newZoom = Math.min(appState.currentZoom + zoomIncrement, appState.maxZoom);
+    
+    if (newZoom > appState.currentZoom) {
+        applyZoom(newZoom);
+    }
+}
+
+// Zoom out function
+function zoomOut() {
+    const zoomIncrement = 0.5;
+    const newZoom = Math.max(appState.currentZoom - zoomIncrement, 1.0);
+    
+    if (newZoom < appState.currentZoom) {
+        applyZoom(newZoom);
+    }
+}
+
 // Attach all event listeners
 function attachEventListeners() {
     elements.takePhotoBtn.addEventListener('click', takePhoto);
+    elements.zoomInBtn.addEventListener('click', zoomIn);
+    elements.zoomOutBtn.addEventListener('click', zoomOut);
     elements.saveMetadataBtn.addEventListener('click', handleSaveMetadata);
 
     // Event listener for the work front dropdown
@@ -420,9 +535,16 @@ function attachEventListeners() {
         }
     });
 
+    elements.flashToggleBtn.addEventListener('click', toggleFlash);
 }
 
 // Function to cycle through flash modes
+function toggleFlash() {
+    if (!appState.flashSupported) return;
+    
+    appState.currentFlashIndex = (appState.currentFlashIndex + 1) % appState.flashModes.length;
+    updateFlashControl();
+}
 
 // Function to update the flash button UI
 function updateFlashControl() {
@@ -457,8 +579,6 @@ function updateFlashControl() {
     }
 }
 
-<<<<<<< ours
-=======
 // Start camera function
 async function startCamera() {
     // If permission was already explicitly denied, don't ask again.
@@ -622,7 +742,6 @@ async function initializeCameraCapabilities(track) {
     updateFlashControl();
 }
 
->>>>>>> theirs
 // Attempt to get current location with enhanced precision and start watching for better readings
 function getCurrentLocation() {
     return new Promise((resolve, reject) => {
@@ -646,7 +765,8 @@ function getCurrentLocation() {
                         showStatus(`Ubicación obtenida. Precisión: ±${Math.round(appState.currentLocation.accuracy)}m. Puede tomar una foto.`, 'success');
                         gpsDisplay.value = `${position.coords.latitude.toFixed(7)}, ${position.coords.longitude.toFixed(7)}`;
                         elements.takePhotoBtn.disabled = false;
-
+                        
+                        setTimeout(() => updateZoomControls(), 500);
                         startLocationWatching(gpsDisplay);
                         resolve(position);
                     },
@@ -821,58 +941,123 @@ function cropToAspectRatio(imageDataUrl) {
 }
 
 // Take photo
-function takePhoto() {
-    if (!elements.video.srcObject) {
-        showStatus('La cámara no está activa.', 'error');
-        return;
-    }
-
-    // Show processing state
+async function takePhoto() {
+    // Disable button to prevent multiple clicks and show processing state
     elements.takePhotoBtn.disabled = true;
     elements.takePhotoBtn.innerHTML = '<span class="loading"></span> Procesando...';
 
-    // Set canvas dimensions to match video stream
-    const videoTrack = elements.video.srcObject.getVideoTracks()[0];
-    const settings = videoTrack.getSettings();
-    elements.canvas.width = settings.width;
-    elements.canvas.height = settings.height;
 
-    // Draw the current video frame to the canvas
-    const ctx = elements.canvas.getContext('2d');
-    ctx.drawImage(elements.video, 0, 0, elements.canvas.width, elements.canvas.height);
-
-    // Get the image data URL from the canvas
-    const imageDataUrl = elements.canvas.toDataURL('image/jpeg', 0.96);
-
-    // Stop the camera stream
-    stopCamera();
-
-    // Process the image (orientation correction and cropping)
-    (async () => {
+    const processImage = async (imageSource) => {
         try {
-            const correctedImageDataUrl = await correctImageOrientation(imageDataUrl);
-            const croppedImageDataUrl = await cropToAspectRatio(correctedImageDataUrl);
-            appState.capturedPhotoDataUrl = croppedImageDataUrl;
+            const canvas = document.createElement('canvas');
+            // Use actual video/source dimensions for maximum quality
+            const width = imageSource.videoWidth || imageSource.width;
+            const height = imageSource.videoHeight || imageSource.height;
+            
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d');
+            
+            // Draw the image with maximum quality
+            context.drawImage(imageSource, 0, 0, width, height);
+            
+            // Capture with maximum quality (95%)
+            let imageDataUrl = canvas.toDataURL('image/jpeg', 0.95); // Calidad aumentada para mejor detalle
+
+            // Correct the image orientation based on EXIF data before storing
+            try {
+                imageDataUrl = await correctImageOrientation(imageDataUrl);
+            } catch (orientationError) {
+                console.warn('Could not correct image orientation:', orientationError);
+                // If orientation correction fails, use the original image
+            }
+
+            // Crop the image to 16:9 or 9:16 aspect ratio
+            try {
+                const croppedImageDataUrl = await cropToAspectRatio(imageDataUrl);
+                appState.capturedPhotoDataUrl = croppedImageDataUrl;
+            } catch (cropError) {
+                console.error('Error al recortar la imagen:', cropError);
+                appState.capturedPhotoDataUrl = imageDataUrl; // Use uncropped image on error
+            }
+
+            // Stop video tracks properly
+            if (appState.stream) {
+                appState.stream.getTracks().forEach(track => track.stop());
+                appState.stream = null;
+            }
+            elements.video.srcObject = null;
+            elements.cameraSection.classList.add('hidden');
+            elements.formSection.classList.remove('hidden');
+            
+            // Restore button state
+            elements.takePhotoBtn.innerHTML = 'Tomar Foto';
+
+            appState.isCameraActive = false;
+            
+            // Update the GPS display with the best location found so far
+            if (appState.bestLocation) {
+                const gpsDisplay = document.getElementById('gps-coords');
+                gpsDisplay.value = `${appState.bestLocation.latitude.toFixed(7)}, ${appState.bestLocation.longitude.toFixed(7)} (±${Math.round(appState.bestLocation.accuracy)}m)`;
+            }
         } catch (error) {
-            console.error('Error al procesar la imagen:', error);
-            showStatus('Error al procesar la imagen. Intente de nuevo.', 'error');
-            appState.capturedPhotoDataUrl = imageDataUrl; // Use uncorrected on error
+            console.error('Error processing the captured image:', error);
+            showStatus('Error al procesar la imagen capturada.', 'error');
+            // Attempt to restart the camera on processing failure
+            restartCamera();
         }
+    };
 
-        // Hide camera section and show form
-        elements.cameraSection.classList.add('hidden');
-        elements.formSection.classList.remove('hidden');
+    if (appState.imageCapture) {
+        // Re-introduce photoSettings just for flash control.
+        const photoSettings = {
+            fillLightMode: appState.flashModes[appState.currentFlashIndex]
+        };
+        console.log('Taking photo with settings:', photoSettings);
 
-        // Restore button state
-        elements.takePhotoBtn.innerHTML = 'Tomar Foto';
-        elements.takePhotoBtn.disabled = false;
-
-        // Update GPS display with the best location found
-        if (appState.bestLocation) {
-            const gpsDisplay = document.getElementById('gps-coords');
-            gpsDisplay.value = `${appState.bestLocation.latitude.toFixed(7)}, ${appState.bestLocation.longitude.toFixed(7)} (±${Math.round(appState.bestLocation.accuracy)}m)`;
+        appState.imageCapture.takePhoto(photoSettings)
+            .then(blob => {
+                const objectURL = URL.createObjectURL(blob);
+                const image = new Image();
+                image.src = objectURL;
+                image.onload = async () => { // image is the Image object
+                    await processImage(image);
+                    URL.revokeObjectURL(objectURL); // Liberar memoria del Object URL
+                };
+                image.onerror = (error) => {
+                    URL.revokeObjectURL(objectURL); // Liberar memoria también en caso de error
+                    console.error('Error loading captured photo:', error);
+                    showStatus('Error al cargar la foto capturada.', 'error');
+                    restartCamera();
+                };
+            })
+            .catch(error => {
+                console.error('Error taking photo with settings, trying without:', error);
+                // Fallback if even flash settings fail on some devices
+                appState.imageCapture.takePhoto().then(blob => {
+                    const objectURL = URL.createObjectURL(blob);
+                    const image = new Image();
+                    image.src = objectURL;
+                    image.onload = async () => { 
+                        await processImage(image);
+                        URL.revokeObjectURL(objectURL);
+                    }
+                }).catch(err2 => {
+                    console.error('Error taking photo on fallback attempt:', err2);
+                    showStatus('Error crítico al tomar la foto.', 'error');
+                    restartCamera();
+                });
+            });
+    } else {
+        // Fallback for browsers without ImageCapture
+        try {
+            await processImage(elements.video);
+        } catch (fallbackError) {
+            console.error('Error taking photo with video fallback:', fallbackError);
+            showStatus('Error crítico al tomar la foto. Reiniciando cámara...', 'error');
+            restartCamera();
         }
-    })();
+    }
 }
 
 // Handle save metadata
@@ -1473,47 +1658,66 @@ function newCapture() {
     // Reset work front search
     elements.workFrontSearch.value = '';
     document.getElementById('work-front').value = '';
+    
+    // Restore download button text if it was changed
+    if (elements.downloadPhotoBtn.innerHTML.includes('Guardando...') || 
+        elements.downloadPhotoBtn.innerHTML.includes('Guardando en galería') || 
+        elements.downloadPhotoBtn.innerHTML.includes('Descargando...')) {
+        elements.downloadPhotoBtn.innerHTML = 'Guardar en Galería';
+        elements.downloadPhotoBtn.disabled = false;
+    }
+    
+    // Reset rotation state
+    appState.imageRotation = 0;
+    appState.originalPhotoWithMetadata = null;
+    // Limpiar los datos de la foto anterior para liberar memoria
+    appState.capturedPhotoDataUrl = null;
+    appState.photoWithMetadata = null;
+    elements.photoPreview.src = ''; // Limpiar la vista previa de la imagen
+    
+    // --- PERSISTENCE: Load last used form data ---
+    loadPersistentData();
+    // --- END PERSISTENCE ---
 
-    // Simply reload the page to reset the state completely
-    startCamera();
+    // Stop location watching when starting a new capture
+    stopLocationWatching();
+    
+    // Reset zoom state
+    appState.currentZoom = 1.0;
+    updateZoomControls();
+    
+    // Start camera automatically when returning to camera view
+    if (!appState.isCameraActive) {
+        startCamera();
+    }
+}
+
+// Function to start camera automatically on page load with enhanced stability
+function autoStartCamera() {
+    // Only start camera if no active stream
+    if (!appState.stream && !appState.isCameraActive) {
+        console.log('Attempting to start camera automatically...');
+        
+        // Use setTimeout to ensure DOM is fully loaded
+        setTimeout(() => {
+            startCamera();
+        }, 100); // Small delay to ensure everything is ready
+    }
 }
 
 // Enhanced function to restart camera with better error handling
-
-// Function to start the camera stream
-async function startCamera() {
-    try {
-        const constraints = {
-            video: {
-                facingMode: 'environment', // Prefer rear camera
-                width: { ideal: 1920 },
-                height: { ideal: 1080 }
-            }
-        };
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        elements.video.srcObject = stream;
-        elements.takePhotoBtn.disabled = false;
-        showStatus('Cámara lista.', 'info');
-    } catch (error) {
-        console.error('Error al acceder a la cámara:', error);
-        let message = 'Error al acceder a la cámara. ';
-        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-            message += 'Permiso denegado. Por favor, habilite el acceso a la cámara en la configuración de su navegador.';
-            appState.permissionDenied = true;
-        } else {
-            message += 'Asegúrese de que la cámara no esté siendo utilizada por otra aplicación.';
-        }
-        showStatus(message, 'error');
-        elements.takePhotoBtn.disabled = true;
+function restartCamera() {
+    // Stop any existing stream first
+    if (appState.stream) {
+        appState.stream.getTracks().forEach(track => track.stop());
+        appState.stream = null;
     }
-}
-
-// Function to stop the camera stream
-function stopCamera() {
-    if (elements.video.srcObject) {
-        elements.video.srcObject.getTracks().forEach(track => track.stop());
-        elements.video.srcObject = null;
-    }
+    
+    // Reset camera state
+    appState.isCameraActive = false;
+    
+    // Attempt to start camera again
+    startCamera();
 }
 
 // --- New function to populate the custom searchable dropdown ---
