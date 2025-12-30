@@ -82,8 +82,16 @@
                     </div>
                     
                     <div class="form-group">
-                        <label for="activity-performed">Actividad Realizada:</label>
-                        <textarea id="activity-performed" rows="4"></textarea>
+                        <label for="activity-performed">Actividad Realizada (Seleccione una o varias):</label>
+                        <select id="activity-select" multiple required style="height: 150px;">
+                            <option value="otro">Otro</option>
+                        </select>
+                        <input type="hidden" id="activity-performed">
+                    </div>
+
+                    <div class="form-group hidden" id="other-activity-group">
+                        <label for="other-activity">Especifique Actividad:</label>
+                        <textarea id="other-activity" rows="2" placeholder="Describa la actividad"></textarea>
                     </div>
 
                     <div class="form-group">

@@ -80,8 +80,8 @@ function init() {
     elements.flashModeText = document.getElementById('flash-mode-text');
     
     // Load dynamic and persistent data
-    loadWorkFronts();
-    loadPersistentData();
+    // Chain loading to ensure options exist before restoring data
+    loadWorkFronts().then(() => loadPersistentData());
     
     // Initialize zoom controls
     initializeZoomControls();
@@ -123,7 +123,8 @@ async function loadWorkFronts() {
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const workFronts = await response.json();
+        const data = await response.json();
+        const workFronts = Array.isArray(data) ? data : (data.frentes || []);
         
         const workFrontSelect = document.getElementById('work-front');
         const otherOption = workFrontSelect.querySelector('option[value="otro"]');
@@ -138,6 +139,19 @@ async function loadWorkFronts() {
 
         // After loading, populate the custom searchable dropdown
         populateWorkFrontOptions();
+
+        // Load Activities if available in the new JSON structure
+        if (!Array.isArray(data) && data.actividades) {
+            const activitySelect = document.getElementById('activity-select');
+            const otherActivityOption = activitySelect.querySelector('option[value="otro"]');
+            
+            data.actividades.forEach(activity => {
+                const option = document.createElement('option');
+                option.value = activity;
+                option.textContent = activity;
+                activitySelect.insertBefore(option, otherActivityOption);
+            });
+        }
     } catch (error) {
         console.error('Could not load work fronts:', error);
         showStatus('Error al cargar la lista de frentes de trabajo.', 'error');
@@ -167,7 +181,47 @@ function loadPersistentData() {
             }
             document.getElementById('coronation').value = formData.coronation || '';
             document.getElementById('observation-category').value = formData.observationCategory || '';
-            document.getElementById('activity-performed').value = formData.activityPerformed || '';
+            
+            // Restore Activity Performed
+            if (formData.activityPerformed) {
+                const activitySelect = document.getElementById('activity-select');
+                const activityHidden = document.getElementById('activity-performed');
+                const otherActivityGroup = document.getElementById('other-activity-group');
+                const otherActivityInput = document.getElementById('other-activity');
+                
+                // Split by comma and trim to handle multiple values
+                const savedValues = formData.activityPerformed.split(',').map(s => s.trim());
+                let isOther = false;
+                
+                // Reset selection
+                activitySelect.selectedIndex = -1;
+
+                // Select matching options
+                Array.from(activitySelect.options).forEach(opt => {
+                    if (savedValues.includes(opt.value)) {
+                        opt.selected = true;
+                        // Remove from savedValues to find what remains (custom text)
+                        const index = savedValues.indexOf(opt.value);
+                        if (index > -1) {
+                            savedValues.splice(index, 1); 
+                        }
+                    }
+                });
+
+                // If anything remains, it's custom text
+                if (savedValues.length > 0) {
+                    isOther = true;
+                    otherActivityInput.value = savedValues.join(', ');
+                    const otherOption = activitySelect.querySelector('option[value="otro"]');
+                    if (otherOption) otherOption.selected = true;
+                }
+
+                if (isOther) {
+                    otherActivityGroup.classList.remove('hidden');
+                }
+                
+                activityHidden.value = formData.activityPerformed;
+            }
         }
     } catch (e) {
         console.error("Error loading form data from localStorage:", e);
@@ -349,6 +403,49 @@ function attachEventListeners() {
         }
     });
     // --- End New Searchable Select Logic ---
+
+    // --- Activity Dropdown Logic ---
+    const activitySelect = document.getElementById('activity-select');
+    const otherActivityGroup = document.getElementById('other-activity-group');
+    const otherActivityInput = document.getElementById('other-activity');
+    const activityPerformedHidden = document.getElementById('activity-performed');
+
+    function updateActivityHiddenValue() {
+        const selectedOptions = Array.from(activitySelect.selectedOptions);
+        const selectedValues = selectedOptions
+            .map(opt => opt.value)
+            .filter(val => val !== '' && val !== 'otro');
+        
+        const isOtherSelected = selectedOptions.some(opt => opt.value === 'otro');
+        
+        if (isOtherSelected) {
+            const otherText = otherActivityInput.value.trim();
+            if (otherText) {
+                selectedValues.push(otherText);
+            }
+        }
+        
+        activityPerformedHidden.value = selectedValues.join(', ');
+    }
+
+    if (activitySelect) {
+        activitySelect.addEventListener('change', () => {
+            const isOtherSelected = Array.from(activitySelect.selectedOptions).some(opt => opt.value === 'otro');
+            if (isOtherSelected) {
+                otherActivityGroup.classList.remove('hidden');
+                otherActivityInput.setAttribute('required', 'true');
+            } else {
+                otherActivityGroup.classList.add('hidden');
+                otherActivityInput.removeAttribute('required');
+            }
+            updateActivityHiddenValue();
+        });
+
+        otherActivityInput.addEventListener('input', () => {
+            updateActivityHiddenValue();
+        });
+    }
+    // --- End Activity Dropdown Logic ---
 
     // Add event listeners to form inputs to prevent background updates from interfering
     const formInputs = document.querySelectorAll('#form-section select, #form-section input, #form-section textarea');
